@@ -211,6 +211,11 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             pass
 
         try:
+            start_config['cap_add'] = instance.data.fields['capAdd']
+        except KeyError:
+            pass
+
+        try:
             volumes = instance.data.fields['dataVolumes']
             volumes_map = {}
             binds_map = {}
