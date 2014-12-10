@@ -222,6 +222,33 @@ def test_instance_activate_links_no_service(agent, responses):
 
 
 @if_docker
+def test_instance_activate_privileged(agent, responses):
+    _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+
+    def pre(req):
+        req['data']['instanceHostMap']['instance']['data']['fields']['privileged']="true"
+
+    def post(req, resp):
+        assert resp['data']['instance']['+data']['dockerInspect']['HostConfig']['Privileged']
+        del resp['data']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instance']['+data']['+fields']
+        del docker_container['Created']
+        del docker_container['Id']
+        del docker_container['Status']
+        docker_container = _sort_ports(docker_container)
+        del docker_container['Ports'][0]['PublicPort']
+        del docker_container['Ports'][1]['PublicPort']
+        del fields['dockerIp']
+        assert fields['dockerPorts']['8080/tcp'] is not None
+        assert fields['dockerPorts']['12201/udp'] is not None
+        fields['dockerPorts']['8080/tcp'] = '1234'
+        fields['dockerPorts']['12201/udp'] = '5678'
+
+    event_test(agent, 'docker/instance_activate', pre_func=pre, post_func=post)
+
+
+@if_docker
 def test_instance_activate_ipsec(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
