@@ -1,8 +1,5 @@
 argparse
-mako
 docker-py==0.6
 portalocker
-libvirt-python
-websockify
 subprocess32
 psutil

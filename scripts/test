@@ -5,7 +5,6 @@ cd $(dirname $0)/..
 
 if [ -x "$(which wrapdocker)" ]; then
     wrapdocker > /tmp/docker.log 2>&1
-    LANG=C.UTF-8 LANGUAGE=C /etc/init.d/libvirt-bin start
     docker ps
 fi
 
@@ -19,7 +18,7 @@ trap "rm -rf $TMP" exit
 rsync -a ./ $TMP
 pushd $TMP
 
-sudo env LIBVIRT_TEST=true DOCKER_TEST=true tox
+sudo env DOCKER_TEST=true tox
 
 popd
 rsync -a --delete $TMP/.tox/ .tox

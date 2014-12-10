@@ -12,12 +12,6 @@ This agent is typically deployed inside a container on Rancher compute nodes. Se
 Steps to get the tests running and passing:
 
 1. Have boot2docker up and running
-1. Install libvirt and pkg-config (they're needed to cleanly install requirements.txt)
- 
-  ```
-  $ brew install libvirt
-  $ brew install pkg-config
-  ```
 1. Create virtual environment and install python dependencies:
 
   ```

@@ -2,4 +2,4 @@
 
 cd $(dirname $0)/..
 
-rm -rf CattleAgent.egg-info dist .tox
+rm -rf CattleAgent.egg-info dist .tox build
