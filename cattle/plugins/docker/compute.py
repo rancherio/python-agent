@@ -199,6 +199,11 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         except (KeyError, AttributeError):
             pass
 
+        try:
+            config['mem_limit'] = instance.memoryMb
+        except (AttributeError):
+            pass
+
         start_config = {
             'publish_all_ports': False,
             'privileged': self._is_privileged(instance)
