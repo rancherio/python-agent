@@ -9,7 +9,7 @@ from .compute import DockerCompute
 from cattle.agent.handler import BaseHandler
 from cattle.progress import Progress
 from cattle.type_manager import get_type, MARSHALLER
-from . import DockerConfig
+from . import DockerConfig, docker_client
 
 import requests
 
@@ -27,25 +27,34 @@ def _make_session():
 _SESSION = _make_session()
 
 
-def container_exec(ip, token, event):
-    marshaller = get_type(MARSHALLER)
-    data = marshaller.to_string(event)
-    url = 'http://{0}:8080/events?token={1}'.format(ip, token)
+def container_exec(ip, instanceData, event):
+    if event.name == 'config.update':
+        c = docker_client()
+        clientSock = c.execute(instanceData.uuid,
+                               '{0}/config.update'.format(Config.home()),
+                               False, True, True, True, True, True, True)
+        data = clientSock.read()
+        return 0, data, data
 
-    r = _SESSION.post(url, data=data, headers={
-        'Content-Type': 'application/json'
-    }, timeout=DockerConfig.delegate_timeout())
+    else:
+        marshaller = get_type(MARSHALLER)
+        data = marshaller.to_string(event)
+        url = 'http://{0}:8080/events?token={1}'.format(ip, instanceData.token)
 
-    if r.status_code != 200:
-        return r.status_code, r.text, None
+        r = _SESSION.post(url, data=data, headers={
+            'Content-Type': 'application/json'
+        }, timeout=DockerConfig.delegate_timeout())
 
-    result = r.json()
+        if r.status_code != 200:
+            return r.status_code, r.text, None
 
-    data = result.get('data')
-    if data is not None:
-        data = marshaller.from_string(data)
+        result = r.json()
 
-    return result.get('exitCode'), result.get('output'), data
+        data = result.get('data')
+        if data is not None:
+            data = marshaller.from_string(data)
+
+        return result.get('exitCode'), result.get('output'), data
 
 
 class DockerDelegate(BaseHandler):
@@ -88,7 +97,7 @@ class DockerDelegate(BaseHandler):
             pass
 
         progress = Progress(event, parent=req)
-        exit_code, output, data = container_exec(ip, instanceData.token, event)
+        exit_code, output, data = container_exec(ip, instanceData, event)
 
         if exit_code == 0:
             return reply(event, data, parent=req)
