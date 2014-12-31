@@ -69,7 +69,7 @@ def docker_client(version=None):
 
     kwargs['version'] = version
 
-    return Client(**kwargs)
+    return DockerClient(**kwargs)
 
 
 def pull_image(image, progress):
@@ -81,7 +81,7 @@ def get_compute():
 
 
 try:
-    from docker import Client
+    from .client import DockerClient
 except:
     log.info('Disabling docker, docker-py not found')
     _ENABLED = False

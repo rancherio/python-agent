@@ -1,15 +1,16 @@
 import logging
+import re
 
 from urlparse import urlparse
 
 from cattle import Config
-from cattle.utils import reply
-from .util import add_to_env
-from .compute import DockerCompute
 from cattle.agent.handler import BaseHandler
 from cattle.progress import Progress
 from cattle.type_manager import get_type, MARSHALLER
-from . import DockerConfig
+from cattle.utils import reply
+from .compute import DockerCompute
+from .util import add_to_env
+from . import docker_client
 
 import requests
 
@@ -25,27 +26,38 @@ def _make_session():
 
 
 _SESSION = _make_session()
+_REGEX = re.compile(';.*')
 
 
-def container_exec(ip, token, event):
+def container_exec(ip, instanceData, event):
     marshaller = get_type(MARSHALLER)
-    data = marshaller.to_string(event)
-    url = 'http://{0}:8080/events?token={1}'.format(ip, token)
-
-    r = _SESSION.post(url, data=data, headers={
-        'Content-Type': 'application/json'
-    }, timeout=DockerConfig.delegate_timeout())
-
-    if r.status_code != 200:
-        return r.status_code, r.text, None
-
-    result = r.json()
-
-    data = result.get('data')
-    if data is not None:
-        data = marshaller.from_string(data)
-
-    return result.get('exitCode'), result.get('output'), data
+    c = docker_client()
+    executor = Config.home() + '/events/executor.py'
+    cmd = '{0}/events/' + _REGEX.sub('', event.name)
+    cmd = cmd.format(Config.home())
+    cmd = [executor, cmd]
+    cmd_id = c.executeCreate(instanceData.uuid, cmd,
+                             stdin=True, stream=True)
+    client_sock = None
+    data = ''
+    try:
+        client_sock = c.executeStart(cmd_id, stream=True)
+        client_sock.write(marshaller.to_string(event))
+        data = ''.join([str(x) for x in client_sock.read()])
+        client_sock.shutdown(0)
+    except Exception as e:
+        log.error(e)
+    finally:
+        client_sock.close()
+    result_data = None
+    try:
+        result_data = data.decode('utf-8')
+        result_data = marshaller.from_string(result_data)
+        exitCode = result_data['exitCode']
+        return exitCode, result_data['output'], result_data['data']
+    except Exception as e:
+        log.error(e)
+        return 1, result_data, None
 
 
 class DockerDelegate(BaseHandler):
@@ -88,7 +100,7 @@ class DockerDelegate(BaseHandler):
             pass
 
         progress = Progress(event, parent=req)
-        exit_code, output, data = container_exec(ip, instanceData.token, event)
+        exit_code, output, data = container_exec(ip, instanceData, event)
 
         if exit_code == 0:
             return reply(event, data, parent=req)

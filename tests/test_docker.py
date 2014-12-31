@@ -260,6 +260,24 @@ def test_instance_activate_cpu_set(agent, responses):
 
 
 @if_docker
+def test_instance_execute(agent, responses):
+    _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+
+    def post(req, resp):
+        c = docker_client()
+        data = c.execute('c861f990-4472-4fa1-960f-65171b544c28',
+                         ['echo', 'hello, world'], stream=True, tty=False)
+        out = ''
+        for val in data:
+            out = out + val
+        assert out == 'hello, world\n'
+        container_field_test_boiler_plate(resp)
+
+    schema = 'docker/instance_activate_fields'
+    event_test(agent, schema, post_func=post)
+
+
+@if_docker
 def test_instance_activate_memory_swap(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
