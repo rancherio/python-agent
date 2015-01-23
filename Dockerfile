@@ -1,5 +1,4 @@
-FROM rancher/docker-dind-base:v3
-ENV DOCKER_DRIVER vfs
+FROM rancher/docker-dind-base:v0.4.1
 COPY ./scripts/bootstrap /scripts/bootstrap
 RUN /scripts/bootstrap
 WORKDIR /source
