@@ -64,15 +64,19 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
     def _get_image_storage_pool_map_data(self, obj):
         image = self._get_image_by_label(obj.image.data.dockerImage.fullName)
         return {
-            '+data': {
-                'dockerImage': image
+            'imageStoragePoolMap': {
+                '+data': {
+                    'dockerImage': image
+                }
             }
         }
 
     def _get_volume_storage_pool_map_data(self, obj):
         return {
-            'volume': {
-                'format': 'docker'
+            'volumeStoragePoolMap': {
+                'volume': {
+                    'format': 'docker'
+                }
             }
         }
 

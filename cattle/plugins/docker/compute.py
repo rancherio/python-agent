@@ -351,14 +351,16 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                         docker_ports[private_port] = None
 
         return {
-            'instance': {
-                '+data': {
-                    'dockerContainer': existing,
-                    'dockerInspect': inspect,
-                    '+fields': {
-                        'dockerHostIp': DockerConfig.docker_host_ip(),
-                        'dockerPorts': docker_ports,
-                        'dockerIp': docker_ip
+            'instanceHostMap': {
+                'instance': {
+                    '+data': {
+                        'dockerContainer': existing,
+                        'dockerInspect': inspect,
+                        '+fields': {
+                            'dockerHostIp': DockerConfig.docker_host_ip(),
+                            'dockerPorts': docker_ports,
+                            'dockerIp': docker_ip
+                        }
                     }
                 }
             }
