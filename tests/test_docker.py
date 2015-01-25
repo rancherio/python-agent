@@ -59,7 +59,7 @@ def test_image_activate(agent, responses):
         pass
 
     def post(req, resp):
-        del resp['data']['+data']['dockerImage']['VirtualSize']
+        del resp['data']['imageStoragePoolMap']['+data']['dockerImage']['VirtualSize']
 
     event_test(agent, 'docker/image_activate', post_func=post)
 
@@ -94,9 +94,9 @@ def test_instance_only_activate(agent, responses):
             nic['macAddress'] = ''
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -122,14 +122,14 @@ def test_instance_activate_no_mac_address(agent, responses):
             nic['macAddress'] = ''
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         mac_received = docker_inspect['Config']['MacAddress']
         mac_nic_received = docker_inspect['NetworkSettings']['MacAddress']
         assert mac_received == ''
         assert mac_nic_received is not None
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -150,14 +150,14 @@ def test_instance_activate_mac_address(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         mac_received = docker_inspect['Config']['MacAddress']
         mac_nic_received = docker_inspect['NetworkSettings']['MacAddress']
         assert mac_nic_received == '02:03:04:05:06:07'
         assert mac_received == '02:03:04:05:06:07'
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -178,9 +178,9 @@ def test_instance_activate_ports(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -198,10 +198,10 @@ def test_instance_activate_links(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
         id = docker_container['Id']
-        fields = resp['data']['instance']['+data']['+fields']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -260,10 +260,10 @@ def test_instance_activate_links_no_service(agent, responses):
     client.start(c)
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
         id = docker_container['Id']
-        fields = resp['data']['instance']['+data']['+fields']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -306,17 +306,17 @@ def test_instance_activate_cpu_set(agent, responses):
         instance['data']['fields']['cpuSet'] = ''
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Cpuset'] == '0,1'
         container_field_test_boiler_plate(resp)
 
     def postNull(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Cpuset'] == ''
         container_field_test_boiler_plate(resp)
 
     def postEmpty(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Cpuset'] == ''
         container_field_test_boiler_plate(resp)
 
@@ -336,7 +336,7 @@ def test_instance_activate_memory_swap(agent, responses):
         instance['data']['fields']['memorySwap'] = 16000000
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['MemorySwap'] == 16000000
         assert docker_inspect['Config']['Memory'] == 8000000
         container_field_test_boiler_plate(resp)
@@ -354,9 +354,9 @@ def test_instance_activate_entrypoint(agent, responses):
         instance['data']['fields']['entryPoint'] = ["./sleep.sh"]
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Entrypoint'] == ["./sleep.sh"]
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
         docker_container['Command'] = "/sleep.sh"
         container_field_test_boiler_plate(resp)
 
@@ -373,7 +373,7 @@ def test_instance_activate_memory(agent, responses):
         instance['data']['fields']['memory'] = 8000000
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Memory'] == 8000000
         container_field_test_boiler_plate(resp)
 
@@ -395,12 +395,12 @@ def test_instance_activate_tty(agent, responses):
         instance['data']['fields']['tty'] = True
 
     def postFalse(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert not docker_inspect['Config']['Tty']
         container_field_test_boiler_plate(resp)
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Tty']
         container_field_test_boiler_plate(resp)
 
@@ -431,21 +431,21 @@ def test_instance_activate_stdinOpen(agent, responses):
         instance['data']['fields']['detach'] = False
 
     def postTrueDetach(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert not docker_inspect['Config']['StdinOnce']
         assert docker_inspect['Config']['OpenStdin']
         assert not docker_inspect['Config']['AttachStdin']
         container_field_test_boiler_plate(resp)
 
     def postFalse(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert not docker_inspect['Config']['StdinOnce']
         assert not docker_inspect['Config']['OpenStdin']
         assert not docker_inspect['Config']['AttachStdin']
         container_field_test_boiler_plate(resp)
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['StdinOnce']
         assert docker_inspect['Config']['OpenStdin']
         assert docker_inspect['Config']['AttachStdin']
@@ -467,7 +467,7 @@ def test_instance_activate_lxc_conf(agent, responses):
         instance['data']['fields']['lxcConf'] = expectedLxcConf
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         for conf in docker_inspect['HostConfig']['LxcConf']:
             assert expectedLxcConf[conf['Key']] == conf['Value']
         container_field_test_boiler_plate(resp)
@@ -485,7 +485,7 @@ def test_instance_activate_domainname(agent, responses):
         instance['data']['fields']['domainName'] = "rancher.io"
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['Domainname'] == "rancher.io"
         container_field_test_boiler_plate(resp)
 
@@ -515,7 +515,7 @@ def test_instance_activate_devices(agent, responses):
         instance['data']['fields']['devices'] = input_devices
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         actual_devices = docker_inspect['HostConfig']['Devices']
 
         assert len(expected_devices) == len(actual_devices)
@@ -542,7 +542,7 @@ def test_instance_activate_dns(agent, responses):
         instance['data']['fields']['dnsSearch'] = ["5.6.7.8", "7.7.7.7"]
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         actual_dns = docker_inspect['HostConfig']['Dns']
         actual_dns_search = docker_inspect['HostConfig']['DnsSearch']
         assert set(actual_dns) == set(["8.8.8.8", "1.2.3.4"])
@@ -563,7 +563,7 @@ def test_instance_activate_caps(agent, responses):
         instance['data']['fields']['capDrop'] = ["MKNOD", "SYS_ADMIN"]
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         set_actual_cap_add = set(docker_inspect['HostConfig']['CapAdd'])
         set_expected_cap_add = set(["MKNOD", "SYS_ADMIN"])
         assert set_actual_cap_add == set_expected_cap_add
@@ -590,12 +590,12 @@ def test_instance_activate_privileged(agent, responses):
 
     def postTrue(req, resp):
         _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['HostConfig']['Privileged']
         container_field_test_boiler_plate(resp)
 
     def postFalse(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert not docker_inspect['HostConfig']['Privileged']
         container_field_test_boiler_plate(resp)
 
@@ -629,7 +629,7 @@ def test_instance_restart_policy(agent, responses):
         instance['data']['fields']['restartPolicy'] = expected_restart_pol_3
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         act_restart_pol = docker_inspect['HostConfig']['RestartPolicy']
         assert act_restart_pol['Name'] == expected_restart_pol_1['name']
         assert act_restart_pol['MaximumRetryCount'] == expected_restart_pol_1[
@@ -637,7 +637,7 @@ def test_instance_restart_policy(agent, responses):
         container_field_test_boiler_plate(resp)
 
     def post_failure_policy(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         act_restart_pol = docker_inspect['HostConfig']['RestartPolicy']
         assert act_restart_pol['Name'] == expected_restart_pol_2['name']
         assert act_restart_pol['MaximumRetryCount'] == expected_restart_pol_2[
@@ -645,7 +645,7 @@ def test_instance_restart_policy(agent, responses):
         container_field_test_boiler_plate(resp)
 
     def post_name_policy(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         act_restart_pol = docker_inspect['HostConfig']['RestartPolicy']
         assert act_restart_pol['Name'] == expected_restart_pol_3['name']
         container_field_test_boiler_plate(resp)
@@ -667,7 +667,7 @@ def test_instance_activate_cpu_shares(agent, responses):
         instance['data']['fields']['cpuShares'] = 400
 
     def post(req, resp):
-        docker_inspect = resp['data']['instance']['+data']['dockerInspect']
+        docker_inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
         assert docker_inspect['Config']['CpuShares'] == 400
         container_field_test_boiler_plate(resp)
 
@@ -680,9 +680,9 @@ def test_instance_activate_ipsec(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -704,9 +704,9 @@ def test_instance_activate_agent_instance_localhost(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         id = docker_container['Id']
 
         del docker_container['Created']
@@ -740,9 +740,9 @@ def test_instance_activate_agent_instance(agent, responses):
 
     def post(req, resp):
 
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         id = docker_container['Id']
 
         del docker_container['Created']
@@ -791,7 +791,7 @@ def test_instance_activate_volumes(agent, responses):
     client.start(c)
 
     def post(req, resp):
-        inspect = resp['data']['instance']['+data']['dockerInspect']
+        inspect = resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
 
         assert inspect['Volumes']['/host/proc'] == '/proc'
         assert inspect['Volumes']['/host/sys'] == '/sys'
@@ -811,9 +811,9 @@ def test_instance_activate_volumes(agent, responses):
         assert set(['/sys:/host/sys:ro', '/proc:/host/proc:rw']) == set(
             inspect['HostConfig']['Binds'])
 
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -834,9 +834,9 @@ def test_instance_activate_null_command(agent, responses):
     _delete_container('/c-c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -857,9 +857,9 @@ def test_instance_activate_command(agent, responses):
     _delete_container('/c-c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -880,9 +880,9 @@ def test_instance_activate_command_args(agent, responses):
     _delete_container('/ca-c861f990-4472-4fa1-960f-65171b544c28')
 
     def post(req, resp):
-        del resp['data']['instance']['+data']['dockerInspect']
-        docker_container = resp['data']['instance']['+data']['dockerContainer']
-        fields = resp['data']['instance']['+data']['+fields']
+        del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+        docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+        fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -972,9 +972,9 @@ def test_volume_purge(agent, responses):
 
 
 def container_field_test_boiler_plate(resp):
-    del resp['data']['instance']['+data']['dockerInspect']
-    docker_container = resp['data']['instance']['+data']['dockerContainer']
-    fields = resp['data']['instance']['+data']['+fields']
+    del resp['data']['instanceHostMap']['instance']['+data']['dockerInspect']
+    docker_container = resp['data']['instanceHostMap']['instance']['+data']['dockerContainer']
+    fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
     del docker_container['Created']
     del docker_container['Id']
     del docker_container['Status']

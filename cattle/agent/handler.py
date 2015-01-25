@@ -89,7 +89,7 @@ class BaseHandler(object):
                 pass
 
             if method is not None:
-                return method(obj)
+                return {type: method(obj)}
 
         return {}
 
