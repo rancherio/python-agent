@@ -1,7 +1,9 @@
 {
     "data": {
-        "volume": {
-            "format": "docker"
+        "volumeStoragePoolMap": {
+           "volume": {
+               "format": "docker"
+           }
         }
     },
     "name": "reply.2609396891612625057",

@@ -1,18 +1,20 @@
 {
     "data": {
-        "instance": {
-            "+data": {
-                "+fields": {
-                    "dockerHostIp": "1.2.3.4",
-                    "dockerPorts": {}
-                },
-                "dockerContainer": {
-                    "Command": "/sleep.sh",
-                    "Image": "ibuildthecloud/helloworld:latest",
-                    "Names": [
-                        "/c861f990-4472-4fa1-960f-65171b544c28"
-                    ],
-                    "Ports": []
+        "instanceHostMap": {
+            "instance": {
+                "+data": {
+                    "+fields": {
+                        "dockerHostIp": "1.2.3.4",
+                        "dockerPorts": {}
+                    },
+                    "dockerContainer": {
+                        "Command": "/sleep.sh",
+                        "Image": "ibuildthecloud/helloworld:latest",
+                        "Names": [
+                            "/c861f990-4472-4fa1-960f-65171b544c28"
+                        ],
+                        "Ports": []
+                    }
                 }
             }
         }
