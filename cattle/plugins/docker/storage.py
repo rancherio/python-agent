@@ -19,41 +19,56 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
     def _get_image_by_id(id):
         templates = docker_client().images(all=True)
         templates = filter(lambda x: x['Id'] == id, templates)
-
         if len(templates) > 0:
             return templates[0]
         return None
 
     @staticmethod
-    def _get_image_by_label(tag):
-        templates = docker_client().images(all=True, name=tag.split(':', 1)[0])
-        templates = filter(lambda x: tag in x['RepoTags'], templates)
-
+    def _get_image_by_label(uuid):
+        parsed_uuid = DockerPool.parse_repo_tag(uuid)
+        templates = docker_client().images(all=True, name=parsed_uuid['repo'])
+        templates = filter(lambda x: parsed_uuid['uuid'] in x['RepoTags'],
+                           templates)
         if len(templates) > 0:
             return templates[0]
         return None
 
     def pull_image(self, image, progress):
+        log.info('Image is: %s', image)
         if not self._is_image_active(image, None):
             self._do_image_activate(image, None, progress)
 
     def _is_image_active(self, image, storage_pool):
-        image_obj = self._get_image_by_label(image.data.dockerImage.fullName)
+        if isinstance(image, basestring):
+            image_obj = self._get_image_by_label(image)
+        else:
+            try:
+                image_obj = self._get_image_by_label(
+                    image.data.dockerImage.fullName)
+            except (KeyError, AttributeError):
+                image_obj = self._get_image_by_label(
+                    image.name)
+
         return image_obj is not None
 
     def _do_image_activate(self, image, storage_pool, progress):
         client = docker_client()
-        data = image.data.dockerImage
+        if isinstance(image, basestring):
+            parsed_uuid = DockerPool.parse_repo_tag(image)
+        else:
+            parsed_uuid = DockerPool.parse_repo_tag(image.uuid)
+        repo = parsed_uuid['repo']
+        tag = parsed_uuid['tag']
+        log.info("Image Activate is: %s repo: %s tag: %s", image, repo, tag)
         marshaller = get_type(MARSHALLER)
 
         if progress is None:
-            client.pull(repository=data.qualifiedName, tag=data.tag)
+            client.pull(repository=repo, tag=tag)
         else:
-            for status in client.pull(repository=data.qualifiedName,
-                                      tag=data.tag,
+            for status in client.pull(repository=repo, tag=tag,
                                       stream=True):
                 try:
-                    log.info('Pulling [%s] status : %s', data.fullName, status)
+                    log.info('Pulling [%s] status : %s', image, status)
                     status = marshaller.from_string(status)
                     message = status['status']
                     progress.update(message)
@@ -61,7 +76,12 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
                     pass
 
     def _get_image_storage_pool_map_data(self, obj):
-        image = self._get_image_by_label(obj.image.data.dockerImage.fullName)
+        try:
+
+            image = self._get_image_by_label(
+                obj.image.data.dockerImage.fullName)
+        except (KeyError, AttributeError):
+            image = self._get_image_by_label(obj.image.name)
         return {
             '+data': {
                 'dockerImage': image
@@ -112,3 +132,16 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def _path_to_volume(self, volume):
         return volume.uri.replace('file://', '')
+
+    @staticmethod
+    def parse_repo_tag(image_uuid):
+        log.info(image_uuid)
+        if image_uuid.startswith('docker:'):
+                    image_uuid = image_uuid[7:]
+        n = image_uuid.rfind(":")
+        if n < 0:
+            return {'repo': image_uuid, 'tag': '', 'uuid': image_uuid}
+        tag = image_uuid[n+1:]
+        if tag.find("/") < 0:
+            return {'repo': image_uuid[:n], 'tag': tag, 'uuid': image_uuid}
+        return {'repo': image_uuid, 'tag': '', 'uuid': image_uuid}

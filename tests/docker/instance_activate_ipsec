@@ -57,16 +57,6 @@
                     "accountId": 110,
                     "checksum": null,
                     "created": 1388791201000,
-                    "data": {
-                        "dockerImage": {
-                            "fullName": "ibuildthecloud/helloworld:latest",
-                            "id": "4aece5bf9124998dae604ab09a9e3d6a3a5e305c68c313198f0faca6c67a1c3f",
-                            "namespace": "cattle",
-                            "qualifiedName": "ibuildthecloud/helloworld",
-                            "repository": "helloworld",
-                            "tag": "latest"
-                        }
-                    },
                     "description": null,
                     "id": 14,
                     "isPublic": true,

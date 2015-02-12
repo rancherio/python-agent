@@ -190,7 +190,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         name = instance.uuid
         try:
-            image_tag = instance.image.data.dockerImage.fullName
+            image_tag = instance.data.fields.imageUuid
+            if image_tag.startswith('docker:'):
+                image_tag = image_tag[7:]
         except KeyError:
             raise Exception('Can not start container with no image')
 
@@ -296,8 +298,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         container = self.get_container_by_name(name)
         if container is None:
-            log.info('Creating docker container [%s] from config %s', name,
-                     create_config)
+            log.info('Creating docker container [%s]'
+                     'from config %s using image (%s)',
+                     name, create_config, image_tag)
 
             try:
                 container = c.create_container(image_tag, **create_config)
@@ -306,7 +309,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if e.message.response.status_code == 404:
                         # Ensure image is pulled, somebody could have deleted
                         # it behind the scenes
-                        pull_image(instance.image, progress)
+                        pull_image(image_tag, progress)
                         cc = create_config
                         container = c.create_container(image_tag, **cc)
                     else:
