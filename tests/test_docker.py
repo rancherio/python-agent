@@ -97,7 +97,6 @@ def test_docker_client_pull():
         pass
     container = client.pull(repository='quay.io/wizardofmath/hellodocker',
                             tag='latest')
-    print(container)
     assert container is not None
 
 
