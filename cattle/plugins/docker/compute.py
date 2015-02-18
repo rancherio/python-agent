@@ -299,7 +299,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         container = self.get_container_by_name(name)
         if container is None:
             log.info('Creating docker container [%s]'
-                     'from config %s using image (%s)',
+                     'from config: [%s] using image: [%s]',
                      name, create_config, image_tag)
 
             try:
@@ -309,7 +309,14 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if e.message.response.status_code == 404:
                         # Ensure image is pulled, somebody could have deleted
                         # it behind the scenes
-                        pull_image(image_tag, progress)
+                        auth_config = {
+                            'username': 'wizardofmath+whisper',
+                            'password': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD3IT081'
+                                        'QWWTZA11R9DZS2DDPP7248NUTT6',
+                            'email': 'wizardofmath+whisper@gmail.com',
+                            'serveraddress': 'https://quay.io/v1/'
+                        }
+                        pull_image(image_tag, progress, auth_config)
                         cc = create_config
                         container = c.create_container(image_tag, **cc)
                     else:

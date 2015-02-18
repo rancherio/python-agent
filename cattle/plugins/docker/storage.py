@@ -33,10 +33,9 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             return templates[0]
         return None
 
-    def pull_image(self, image, progress):
-        log.info('Image is: %s', image)
+    def pull_image(self, image, progress, auth_config=None):
         if not self._is_image_active(image, None):
-            self._do_image_activate(image, None, progress)
+            self._do_image_activate(image, None, progress, auth_config)
 
     def _is_image_active(self, image, storage_pool):
         if isinstance(image, basestring):
@@ -48,10 +47,10 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             except (KeyError, AttributeError):
                 image_obj = self._get_image_by_label(
                     image.name)
-
         return image_obj is not None
 
-    def _do_image_activate(self, image, storage_pool, progress):
+    def _do_image_activate(self, image, storage_pool, progress,
+                           auth_config=None):
         client = docker_client()
         if isinstance(image, basestring):
             parsed_uuid = DockerPool.parse_repo_tag(image)
@@ -59,16 +58,16 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             parsed_uuid = DockerPool.parse_repo_tag(image.uuid)
         repo = parsed_uuid['repo']
         tag = parsed_uuid['tag']
-        log.info("Image Activate is: %s repo: %s tag: %s", image, repo, tag)
+        log.info("Pulling image: [%s]", parsed_uuid['uuid'])
         marshaller = get_type(MARSHALLER)
-
         if progress is None:
-            client.pull(repository=repo, tag=tag)
+            client.pull(repository=repo, tag=tag, auth_config=auth_config)
         else:
             for status in client.pull(repository=repo, tag=tag,
-                                      stream=True):
+                                      stream=True, auth_config=auth_config):
                 try:
-                    log.info('Pulling [%s] status : %s', image, status)
+                    log.info('Pulling [%s] status : %s', parsed_uuid['uuid'],
+                             status)
                     status = marshaller.from_string(status)
                     message = status['status']
                     progress.update(message)
@@ -77,7 +76,6 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def _get_image_storage_pool_map_data(self, obj):
         try:
-
             image = self._get_image_by_label(
                 obj.image.data.dockerImage.fullName)
         except (KeyError, AttributeError):
@@ -135,7 +133,6 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     @staticmethod
     def parse_repo_tag(image_uuid):
-        log.info(image_uuid)
         if image_uuid.startswith('docker:'):
                     image_uuid = image_uuid[7:]
         n = image_uuid.rfind(":")

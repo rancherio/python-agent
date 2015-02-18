@@ -95,9 +95,9 @@ def test_docker_client_pull():
                             force=True)
     except APIError:
         pass
-    container = client.pull(repository='quay.io/wizardofmath/hellodocker',
-                            tag='latest')
-    assert container is not None
+    image = client.pull(repository='quay.io/wizardofmath/hellodocker',
+                        tag='latest')
+    assert image is not None
 
 
 def _need_pull_image_by_name(agent, responses, image_name):
@@ -121,8 +121,10 @@ def _need_pull_image_by_name(agent, responses, image_name):
         sent_parsed = parse_repo_tag(image_name)
         assert parsed_name['repo'] == sent_parsed['repo']
         if sent_parsed['tag'] != '':
-            assert parsed_name['tag'] == sent_parsed['tag'] \
-                   or parsed_name['tag'] != None
+            if sent_parsed['tag'] == 'latest':
+                assert parsed_name['tag'] is not None
+            else:
+                assert parsed_name['tag'] == sent_parsed['tag']
         responseInstance['dockerContainer']['Image'] =\
             'ibuildthecloud/helloworld:latest'
         responseInstance['dockerContainer']['Command'] = '/sleep.sh'
@@ -135,14 +137,14 @@ def _need_pull_image_by_name(agent, responses, image_name):
 @if_docker
 def test_image_pull_variants(agent, responses):
     image_name = [
-          'ibuildthecloud/helloworld:latest',
-          'ibuildthecloud/helloworld',
-          'quay.io/wizardofmath/hellodocker',
-          'quay.io/wizardofmath/hellodocker:latest',
-          'quay.io/wizardofmath/hellodocker:new_stuff',
-          'cirros',
-          'cirros:latest',
-          'cirros:0.3.3'
+        'ibuildthecloud/helloworld:latest',
+        'ibuildthecloud/helloworld',
+        'quay.io/wizardofmath/hellodocker',
+        'quay.io/wizardofmath/hellodocker:latest',
+        'quay.io/wizardofmath/hellodocker:new_stuff',
+        'cirros',
+        'cirros:latest',
+        'cirros:0.3.3'
     ]
 
     for i in image_name:

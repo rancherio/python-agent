@@ -76,8 +76,8 @@ def docker_client(version=None):
     return Client(**kwargs)
 
 
-def pull_image(image, progress):
-    _DOCKER_POOL.pull_image(image, progress)
+def pull_image(image, progress, auth_config=None):
+    _DOCKER_POOL.pull_image(image, progress, auth_config)
 
 
 def get_compute():
