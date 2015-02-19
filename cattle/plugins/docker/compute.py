@@ -317,19 +317,24 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                         except AttributeError:
                             auth_config = None
                             log.info('Pulling image non authed.')
-                        pull_image(image_tag, progress, auth_config)
+                        pull_image(image_tag, None, auth_config=auth_config)
                         cc = create_config
-                        container = c.create_container(image_tag, **cc)
+                        try:
+                            container = c.create_container(image_tag, **cc)
+                        except APIError as e:
+                            pass
                     else:
                         raise(e)
                 except APIError as e:
                     raise(e)
-
-        log.info('Starting docker container [%s] docker id [%s] %s', name,
-                 container['Id'], start_config)
-        c.start(container['Id'], **start_config)
-
-        self._call_listeners(False, instance, host, container['Id'])
+        if container is not None:
+            log.info('Starting docker container [%s] docker id [%s] %s', name,
+                     container['Id'], start_config)
+            c.start(container['Id'], **start_config)
+            self._call_listeners(False, instance, host, container['Id'])
+        else:
+            raise Exception('Unable to make container. [' +
+                            image_tag + ']')
 
     def _call_listeners(self, before, *args):
         for listener in get_type_list(DOCKER_COMPUTE_LISTENER):

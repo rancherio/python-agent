@@ -35,7 +35,8 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def pull_image(self, image, progress, auth_config=None):
         if not self._is_image_active(image, None):
-            self._do_image_activate(image, None, progress, auth_config)
+            self._do_image_activate(image, None, progress,
+                                    auth_config=auth_config)
 
     def _is_image_active(self, image, storage_pool):
         try:
@@ -62,8 +63,8 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         if progress is None:
             client.pull(repository=repo, tag=tag, auth_config=auth_config)
         else:
-            for status in client.pull(repository=repo, tag=tag,
-                                      stream=True, auth_config=auth_config):
+            for status in client.pull(repository=repo, tag=tag, stream=True,
+                                      auth_config=auth_config):
                 try:
                     log.info('Pulling [%s] status : %s', parsed_uuid['uuid'],
                              status)

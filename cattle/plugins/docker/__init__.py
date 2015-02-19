@@ -77,7 +77,7 @@ def docker_client(version=None):
 
 
 def pull_image(image, progress, auth_config=None):
-    _DOCKER_POOL.pull_image(image, progress, auth_config)
+    _DOCKER_POOL.pull_image(image, progress, auth_config=auth_config)
 
 
 def get_compute():
