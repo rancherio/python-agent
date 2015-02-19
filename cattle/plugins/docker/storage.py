@@ -38,15 +38,14 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             self._do_image_activate(image, None, progress, auth_config)
 
     def _is_image_active(self, image, storage_pool):
-        if isinstance(image, basestring):
-            image_obj = self._get_image_by_label(image)
-        else:
+        try:
             try:
                 image_obj = self._get_image_by_label(
                     image.data.dockerImage.fullName)
-            except (KeyError, AttributeError):
-                image_obj = self._get_image_by_label(
-                    image.name)
+            except AttributeError:
+                image_obj = self._get_image_by_label(image.name)
+        except AttributeError:
+            image_obj = self._get_image_by_label(image)
         return image_obj is not None
 
     def _do_image_activate(self, image, storage_pool, progress,

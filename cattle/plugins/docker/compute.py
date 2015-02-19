@@ -190,7 +190,10 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         name = instance.uuid
         try:
-            image_tag = instance.data.fields.imageUuid
+            try:
+                image_tag = instance.image.data.dockerImage.fullName
+            except (KeyError, AttributeError):
+                image_tag = instance.data.fields.imageUuid
             if image_tag.startswith('docker:'):
                 image_tag = image_tag[7:]
         except KeyError:
@@ -309,19 +312,17 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if e.message.response.status_code == 404:
                         # Ensure image is pulled, somebody could have deleted
                         # it behind the scenes
-                        auth_config = {
-                            'username': 'wizardofmath+whisper',
-                            'password': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD3IT081'
-                                        'QWWTZA11R9DZS2DDPP7248NUTT6',
-                            'email': 'wizardofmath+whisper@gmail.com',
-                            'serveraddress': 'https://quay.io/v1/'
-                        }
+                        try:
+                            auth_config = instance.credentialId
+                        except AttributeError:
+                            auth_config = None
+                            log.info('Pulling image non authed.')
                         pull_image(image_tag, progress, auth_config)
                         cc = create_config
                         container = c.create_container(image_tag, **cc)
                     else:
                         raise(e)
-                except:
+                except APIError as e:
                     raise(e)
 
         log.info('Starting docker container [%s] docker id [%s] %s', name,
