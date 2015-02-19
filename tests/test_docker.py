@@ -176,8 +176,8 @@ def test_image_pull_credential(agent, responses):
 
     event_test(agent, 'docker/instance_activate', pre_func=pre, post_func=post)
 
-@if_docker
-def test_image_pull_invalid_credential(agent, responses):
+
+def image_pull_invalid_credential(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
     image_name = 'quay.io/wizardofmath/whisperdocker'
 
