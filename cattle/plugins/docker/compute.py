@@ -20,7 +20,7 @@ def james(self, message, *args, **kws):
 logging.Logger.james = james
 
 log = logging.getLogger('docker')
-log.setLevel(DEBUG_LEVELV_NUM)
+# log.setLevel(DEBUG_LEVELV_NUM)
 
 
 def _is_running(container):
@@ -345,10 +345,13 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                         try:
                             container = c.create_container(image_tag, **cc)
                         except APIError as e:
+                            log.james('1: Instance: [%s]', instance)
                             raise(e)
                     else:
+                        log.james('2: Instance: [%s]', instance)
                         raise(e)
                 except APIError as e:
+                    log.james('3: Instance: [%s]', instance)
                     raise(e)
         if container is not None:
             log.info('Starting docker container [%s] docker id [%s] %s', name,
