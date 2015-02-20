@@ -10,7 +10,17 @@ from cattle import utils
 from docker.errors import APIError
 from cattle.plugins.host_info.main import HostInfo
 
+
+DEBUG_LEVELV_NUM = 100
+logging.addLevelName(DEBUG_LEVELV_NUM, "JAMES")
+def james(self, message, *args, **kws):
+    # Yes, logger takes its '*args' as 'args'.
+    if self.isEnabledFor(DEBUG_LEVELV_NUM):
+        self._log(DEBUG_LEVELV_NUM, message, args, **kws)
+logging.Logger.james = james
+
 log = logging.getLogger('docker')
+log.setLevel(DEBUG_LEVELV_NUM)
 
 
 def _is_running(container):
@@ -86,7 +96,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             try:
                 stats = self.host_info.collect_data()
             except:
-                log.exception("Error geting host info stats")
+                log.exception("Error getting host info stats")
 
         physical_host = Config.physical_host()
 
@@ -189,6 +199,19 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             return key[0].upper() + key[1:]
 
         name = instance.uuid
+        try:
+            log.james('Instance: [%s]',instance.registryCredential)
+            auth_config = {
+                'username': instance.registryCredential['publicValue'],
+                'email': instance.registryCredential['data']['fields']['email'],
+                # 'password': instance.registryCredential['secretValue'],
+                'serveraddress': instance.registryCredential['storagePool']['data']
+                    ['fields']['serverAddress']
+            }
+            log.james('Auth_Config: [%s]', auth_config)
+        except:
+            log.james("\n\n\n\n\n\n\nBad Auth COnfig\n\n\n\n\n\n")
+            pass
         try:
             try:
                 image_tag = instance.image.data.dockerImage.fullName
@@ -316,13 +339,13 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                             auth_config = instance.credentialId
                         except AttributeError:
                             auth_config = None
-                            log.info('Pulling image non authed.')
+                            log.james('Pulling image non authed.')
                         pull_image(image_tag, None, auth_config=auth_config)
                         cc = create_config
                         try:
                             container = c.create_container(image_tag, **cc)
                         except APIError as e:
-                            pass
+                            raise(e)
                     else:
                         raise(e)
                 except APIError as e:

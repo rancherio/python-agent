@@ -60,11 +60,12 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         tag = parsed_uuid['tag']
         log.info("Pulling image: [%s]", parsed_uuid['uuid'])
         marshaller = get_type(MARSHALLER)
+        log.critical('Auth Config: [%s]', auth_config)
         if progress is None:
-            client.pull(repository=repo, tag=tag, auth_config=auth_config)
+            client.pull(repository=repo, tag=tag,)# auth_config=auth_config)
         else:
-            for status in client.pull(repository=repo, tag=tag, stream=True,
-                                      auth_config=auth_config):
+            for status in client.pull(repository=repo, tag=tag, stream=True):
+                                      #auth_config=auth_config):
                 try:
                     log.info('Pulling [%s] status : %s', parsed_uuid['uuid'],
                              status)
