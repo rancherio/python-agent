@@ -202,7 +202,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         name = instance.uuid
         try:
-            log.james('Instance: [%s]',instance)
+            log.james('Instance: [%s]', instance)
             auth_config = {
                 'username': instance.registryCredential['publicValue'],
                 'email': instance.registryCredential
@@ -213,7 +213,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             }
 
             log.james('Auth_Config: [%s]', auth_config)
-        except (AttributeError, KeyError) as e:
+        except (AttributeError, KeyError, TypeError):
             auth_config = None
             log.james("Bad Auth COnfig")
             pass
