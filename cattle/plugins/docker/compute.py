@@ -226,7 +226,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 image_tag = image_tag[7:]
         except AttributeError:
             raise Exception('Can not start container with no image')
-        log.james('Image_Tag : [%s]',image_tag)
+        log.james('Image_Tag : [%s]', image_tag)
 
         c = docker_client()
         create_config = {
@@ -345,13 +345,10 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                         try:
                             container = c.create_container(image_tag, **cc)
                         except APIError as e:
-                            log.james('1: Instance: [%s]', instance)
                             raise(e)
                     else:
-                        log.james('2: Instance: [%s]', instance)
                         raise(e)
                 except APIError as e:
-                    log.james('3: Instance: [%s]', instance)
                     raise(e)
         if container is not None:
             log.info('Starting docker container [%s] docker id [%s] %s', name,
