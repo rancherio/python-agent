@@ -149,12 +149,22 @@ def test_image_pull_credential(agent, responses):
         for nic in instance['nics']:
             nic['macAddress'] = ''
         instance['data']['fields']['imageUuid'] = image_name
-        instance['credentialId'] = {
-            'username': 'wizardofmath+whisper',
-            "password": 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD'
-                        '3IT081QWWTZA11R9DZS2DDPP7248NUTT6',
-            'email': 'wizardofmath+whisper@gmail.com',
-            'serveraddress': 'https://quay.io/v1/'
+        instance['registryCredential'] = {
+            'publicValue': 'wizardofmath+whisper',
+            'secretValue': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD'
+                           '3IT081QWWTZA11R9DZS2DDPP7248NUTT6',
+            'data': {
+                'fields': {
+                    'email': 'wizardofmath+whisper@gmail.com',
+                }
+            },
+            'storagePool': {
+                'data': {
+                    'fields': {
+                        'serverAddress': 'https://quay.io/v1/'
+                    }
+                }
+            }
         }
 
     def post(req, resp):
@@ -191,12 +201,22 @@ def image_pull_invalid_credential(agent, responses):
         for nic in instance['nics']:
             nic['macAddress'] = ''
         instance['data']['fields']['imageUuid'] = image_name
-        instance['credentialId'] = {
-            'username': 'wizardofmath+whisper',
-            'password': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD',
-            'email': 'wizardofmath+whisper@gmail.com',
-            'serveraddress': 'https://quay.io/v1/'
-        }
+        instance['registryCredential'] = {
+            'publicValue': 'wizardofmath+whisper',
+            'secretValue': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD',
+            'data': {
+                'fields': {
+                    'email': 'wizardofmath+whisper@gmail.com',
+                }
+            },
+            'storagePool': {
+                'data': {
+                    'fields': {
+                        'serveraddress': 'https://quay.io/v1/'
+                    }
+                }
+            }
+            }
 
     def post(req, resp):
         responseInstance = resp['data']['instanceHostMap']['instance']['+data']

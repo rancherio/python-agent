@@ -13,10 +13,12 @@ from cattle.plugins.host_info.main import HostInfo
 
 DEBUG_LEVELV_NUM = 100
 logging.addLevelName(DEBUG_LEVELV_NUM, "JAMES")
+
+
 def james(self, message, *args, **kws):
     # Yes, logger takes its '*args' as 'args'.
     if self.isEnabledFor(DEBUG_LEVELV_NUM):
-        self._log(DEBUG_LEVELV_NUM, message, args, **kws)
+        self._log(DEBUG_LEVELV_NUM, '\n\n\n'+message+'\n\n\n', args, **kws)
 logging.Logger.james = james
 
 log = logging.getLogger('docker')
@@ -200,30 +202,33 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         name = instance.uuid
         try:
-            log.james('Instance: [%s]',instance.registryCredential)
+            log.james('Instance: [%s]',instance)
             auth_config = {
                 'username': instance.registryCredential['publicValue'],
-                'email': instance.registryCredential['data']['fields']['email'],
-                # 'password': instance.registryCredential['secretValue'],
-                'serveraddress': instance.registryCredential['storagePool']['data']
-                    ['fields']['serverAddress']
+                'email': instance.registryCredential
+                ['data']['fields']['email'],
+                'password': instance.registryCredential['secretValue'],
+                'serveraddress': instance.registryCredential['storagePool']
+                ['data']['fields']['serverAddress']
             }
+
             log.james('Auth_Config: [%s]', auth_config)
-        except:
-            log.james("\n\n\n\n\n\n\nBad Auth COnfig\n\n\n\n\n\n")
+        except (AttributeError, KeyError) as e:
+            auth_config = None
+            log.james("Bad Auth COnfig")
             pass
         try:
             try:
                 image_tag = instance.image.data.dockerImage.fullName
-            except (KeyError, AttributeError):
+            except AttributeError:
                 image_tag = instance.data.fields.imageUuid
             if image_tag.startswith('docker:'):
                 image_tag = image_tag[7:]
-        except KeyError:
+        except AttributeError:
             raise Exception('Can not start container with no image')
+        log.james('Image_Tag : [%s]',image_tag)
 
         c = docker_client()
-
         create_config = {
             'name': name,
             'detach': True
@@ -335,11 +340,6 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if e.message.response.status_code == 404:
                         # Ensure image is pulled, somebody could have deleted
                         # it behind the scenes
-                        try:
-                            auth_config = instance.credentialId
-                        except AttributeError:
-                            auth_config = None
-                            log.james('Pulling image non authed.')
                         pull_image(image_tag, None, auth_config=auth_config)
                         cc = create_config
                         try:
