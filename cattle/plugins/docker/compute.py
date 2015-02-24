@@ -226,7 +226,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 image_tag = image_tag[7:]
         except AttributeError:
             raise Exception('Can not start container with no image')
-        log.james('Image_Tag : [%s]', image_tag)
+        log.critical('Image_Tag : [%s]', image_tag)
 
         c = docker_client()
         create_config = {

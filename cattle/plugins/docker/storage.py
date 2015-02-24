@@ -51,6 +51,7 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def _do_image_activate(self, image, storage_pool, progress,
                            auth_config=None):
+        log.critical("\n\n\n\nIMAGE \n %s \n\n\n", image)
         client = docker_client()
         if isinstance(image, basestring):
             parsed_uuid = DockerPool.parse_repo_tag(image)
@@ -58,9 +59,11 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             parsed_uuid = DockerPool.parse_repo_tag(image.uuid)
         repo = parsed_uuid['repo']
         tag = parsed_uuid['tag']
-        log.info("Pulling image: [%s]", parsed_uuid['uuid'])
+        log.critical("Pulling image: [%s]", parsed_uuid['uuid'])
+        log.critical("Repo: [%s]", parsed_uuid['repo'])
+        log.critical("Tag: [%s]", parsed_uuid['tag'])
         marshaller = get_type(MARSHALLER)
-        log.critical('Auth Config: [%s]', auth_config)
+        log.critical('Image Activate Auth Config: [%s]', auth_config)
         if progress is None:
             client.pull(repository=repo, tag=tag, stream=False,
                         auth_config=auth_config)
