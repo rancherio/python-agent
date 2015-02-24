@@ -10,7 +10,19 @@ from cattle import utils
 from docker.errors import APIError
 from cattle.plugins.host_info.main import HostInfo
 
+
+DEBUG_LEVELV_NUM = 100
+logging.addLevelName(DEBUG_LEVELV_NUM, "JAMES")
+
+
+def james(self, message, *args, **kws):
+    # Yes, logger takes its '*args' as 'args'.
+    if self.isEnabledFor(DEBUG_LEVELV_NUM):
+        self._log(DEBUG_LEVELV_NUM, '\n\n\n'+message+'\n\n\n', args, **kws)
+logging.Logger.james = james
+
 log = logging.getLogger('docker')
+# log.setLevel(DEBUG_LEVELV_NUM)
 
 
 def _is_running(container):
@@ -86,7 +98,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             try:
                 stats = self.host_info.collect_data()
             except:
-                log.exception("Error geting host info stats")
+                log.exception("Error getting host info stats")
 
         physical_host = Config.physical_host()
 
@@ -190,12 +202,33 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         name = instance.uuid
         try:
-            image_tag = instance.image.data.dockerImage.fullName
-        except KeyError:
+            log.james('Instance: [%s]', instance)
+            auth_config = {
+                'username': instance.registryCredential['publicValue'],
+                'email': instance.registryCredential
+                ['data']['fields']['email'],
+                'password': instance.registryCredential['secretValue'],
+                'serveraddress': instance.registryCredential['storagePool']
+                ['data']['fields']['serverAddress']
+            }
+
+            log.james('Auth_Config: [%s]', auth_config)
+        except (AttributeError, KeyError, TypeError):
+            auth_config = None
+            log.james("Bad Auth COnfig")
+            pass
+        try:
+            try:
+                image_tag = instance.image.data.dockerImage.fullName
+            except AttributeError:
+                image_tag = instance.data.fields.imageUuid
+            if image_tag.startswith('docker:'):
+                image_tag = image_tag[7:]
+        except AttributeError:
             raise Exception('Can not start container with no image')
+        log.critical('Image_Tag : [%s]', image_tag)
 
         c = docker_client()
-
         create_config = {
             'name': name,
             'detach': True
@@ -296,8 +329,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         container = self.get_container_by_name(name)
         if container is None:
-            log.info('Creating docker container [%s] from config %s', name,
-                     create_config)
+            log.info('Creating docker container [%s]'
+                     'from config: [%s] using image: [%s]',
+                     name, create_config, image_tag)
 
             try:
                 container = c.create_container(image_tag, **create_config)
@@ -306,19 +340,24 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if e.message.response.status_code == 404:
                         # Ensure image is pulled, somebody could have deleted
                         # it behind the scenes
-                        pull_image(instance.image, progress)
+                        pull_image(image_tag, None, auth_config=auth_config)
                         cc = create_config
-                        container = c.create_container(image_tag, **cc)
+                        try:
+                            container = c.create_container(image_tag, **cc)
+                        except APIError as e:
+                            raise(e)
                     else:
                         raise(e)
-                except:
+                except APIError as e:
                     raise(e)
-
-        log.info('Starting docker container [%s] docker id [%s] %s', name,
-                 container['Id'], start_config)
-        c.start(container['Id'], **start_config)
-
-        self._call_listeners(False, instance, host, container['Id'])
+        if container is not None:
+            log.info('Starting docker container [%s] docker id [%s] %s', name,
+                     container['Id'], start_config)
+            c.start(container['Id'], **start_config)
+            self._call_listeners(False, instance, host, container['Id'])
+        else:
+            raise Exception('Unable to make container. [' +
+                            image_tag + ']')
 
     def _call_listeners(self, before, *args):
         for listener in get_type_list(DOCKER_COMPUTE_LISTENER):

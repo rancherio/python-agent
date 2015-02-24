@@ -88,6 +88,173 @@ def test_instance_activate_need_pull_image(agent, responses):
 
 
 @if_docker
+def test_docker_client_pull():
+    client = docker_client()
+    try:
+        client.remove_image(image='quay.io/wizardofmath/hellodocker:latest',
+                            force=True)
+    except APIError:
+        pass
+    image = client.pull(repository='quay.io/wizardofmath/hellodocker',
+                        tag='latest')
+    assert image is not None
+
+
+def _need_pull_image_by_name(agent, responses, image_name):
+    _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+
+    try:
+        docker_client().remove_image(image_name)
+    except APIError:
+        pass
+
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        for nic in instance['nics']:
+            nic['macAddress'] = ''
+        instance['data']['fields']['imageUuid'] = image_name
+
+    def post(req, resp):
+        responseInstance = resp['data']['instanceHostMap']['instance']['+data']
+        resp_img_uuid = responseInstance['dockerContainer']['Image']
+        parsed_name = parse_repo_tag(resp_img_uuid)
+        sent_parsed = parse_repo_tag(image_name)
+        assert parsed_name['repo'] == sent_parsed['repo']
+        if sent_parsed['tag'] != '':
+            if sent_parsed['tag'] == 'latest':
+                assert parsed_name['tag'] is not None
+            else:
+                assert parsed_name['tag'] == sent_parsed['tag']
+        responseInstance['dockerContainer']['Image'] =\
+            'ibuildthecloud/helloworld:latest'
+        responseInstance['dockerContainer']['Command'] = '/sleep.sh'
+
+        instance_activate_common_validation(resp)
+
+    event_test(agent, 'docker/instance_activate', pre_func=pre, post_func=post)
+
+
+@if_docker
+def test_image_pull_credential(agent, responses):
+    _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+    image_name = 'quay.io/wizardofmath/whisperdocker'
+
+    try:
+        docker_client().remove_image(image_name)
+    except APIError:
+        pass
+
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        for nic in instance['nics']:
+            nic['macAddress'] = ''
+        instance['data']['fields']['imageUuid'] = image_name
+        instance['registryCredential'] = {
+            'publicValue': 'wizardofmath+whisper',
+            'secretValue': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD'
+                           '3IT081QWWTZA11R9DZS2DDPP7248NUTT6',
+            'data': {
+                'fields': {
+                    'email': 'wizardofmath+whisper@gmail.com',
+                }
+            },
+            'storagePool': {
+                'data': {
+                    'fields': {
+                        'serverAddress': 'https://quay.io/v1/'
+                    }
+                }
+            }
+        }
+
+    def post(req, resp):
+        responseInstance = resp['data']['instanceHostMap']['instance']['+data']
+        resp_img_uuid = responseInstance['dockerContainer']['Image']
+        parsed_name = parse_repo_tag(resp_img_uuid)
+        sent_parsed = parse_repo_tag(image_name)
+        assert parsed_name['repo'] == sent_parsed['repo']
+        if sent_parsed['tag'] != '':
+            if sent_parsed['tag'] == 'latest':
+                assert parsed_name['tag'] is not None
+            else:
+                assert parsed_name['tag'] == sent_parsed['tag']
+        responseInstance['dockerContainer']['Image'] =\
+            'ibuildthecloud/helloworld:latest'
+        responseInstance['dockerContainer']['Command'] = '/sleep.sh'
+
+        instance_activate_common_validation(resp)
+
+    event_test(agent, 'docker/instance_activate', pre_func=pre, post_func=post)
+
+
+def image_pull_invalid_credential(agent, responses):
+    _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+    image_name = 'quay.io/wizardofmath/whisperdocker'
+
+    try:
+        docker_client().remove_image(image_name)
+    except APIError:
+        pass
+
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        for nic in instance['nics']:
+            nic['macAddress'] = ''
+        instance['data']['fields']['imageUuid'] = image_name
+        instance['registryCredential'] = {
+            'publicValue': 'wizardofmath+whisper',
+            'secretValue': 'W0IUYDBM2VORHM4DTTEHSMKLXGCG3KD',
+            'data': {
+                'fields': {
+                    'email': 'wizardofmath+whisper@gmail.com',
+                }
+            },
+            'storagePool': {
+                'data': {
+                    'fields': {
+                        'serveraddress': 'https://quay.io/v1/'
+                    }
+                }
+            }
+            }
+
+    def post(req, resp):
+        responseInstance = resp['data']['instanceHostMap']['instance']['+data']
+        resp_img_uuid = responseInstance['dockerContainer']['Image']
+        parsed_name = parse_repo_tag(resp_img_uuid)
+        sent_parsed = parse_repo_tag(image_name)
+        assert parsed_name['repo'] == sent_parsed['repo']
+        if sent_parsed['tag'] != '':
+            if sent_parsed['tag'] == 'latest':
+                assert parsed_name['tag'] is not None
+            else:
+                assert parsed_name['tag'] == sent_parsed['tag']
+        responseInstance['dockerContainer']['Image'] =\
+            'ibuildthecloud/helloworld:latest'
+        responseInstance['dockerContainer']['Command'] = '/sleep.sh'
+
+        instance_activate_common_validation(resp)
+
+    event_test(agent, 'docker/instance_activate', pre_func=pre, post_func=post)
+
+@if_docker
+def test_image_pull_variants(agent, responses):
+    image_name = [
+        'ibuildthecloud/helloworld:latest',
+        'ibuildthecloud/helloworld',
+        'quay.io/wizardofmath/hellodocker',
+        'quay.io/wizardofmath/hellodocker:latest',
+        'quay.io/wizardofmath/hellodocker:new_stuff',
+        'cirros',
+        'cirros:latest',
+        'cirros:0.3.3'
+    ]
+
+    for i in image_name:
+        _need_pull_image_by_name(agent, responses, i)
+
+
+@if_docker
 def test_instance_only_activate(agent, responses):
     _delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
 
@@ -902,3 +1069,13 @@ def instance_activate_common_validation(resp):
     assert fields['dockerPorts']['12201/udp'] is not None
     fields['dockerPorts']['8080/tcp'] = '1234'
     fields['dockerPorts']['12201/udp'] = '5678'
+
+
+def parse_repo_tag(image_uuid):
+    n = image_uuid.rfind(":")
+    if n < 0:
+        return {'repo': image_uuid, 'tag': ""}
+    tag = image_uuid[n+1:]
+    if tag.find("/") < 0:
+        return {'repo': image_uuid[:n], 'tag': tag}
+    return {'repo': image_uuid, 'tag': ""}

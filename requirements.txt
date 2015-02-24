@@ -1,6 +1,6 @@
 argparse
 mako
-docker-py==1.0.0
+git+https://github.com/hibooboo2/docker-py.git@pull_auth
 portalocker
 libvirt-python
 websockify
