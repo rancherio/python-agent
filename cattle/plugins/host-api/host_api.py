@@ -13,6 +13,7 @@ class HostApi(object):
 
         url = 'http://{0}:{1}'.format(Config.cadvisor_ip(),
                                       Config.cadvisor_port())
+
         background(['host-api',
                     '-cadvisor-url',  url,
                     '-logtostderr=true',
@@ -20,7 +21,10 @@ class HostApi(object):
                     '-port', str(Config.host_api_port()),
                     '-auth=true',
                     '-host-uuid', DockerConfig.docker_uuid(),
-                    '-public-key', Config.jwt_public_key_file()],
+                    '-public-key', Config.jwt_public_key_file(),
+                    '-cattle-url', Config.api_url(),
+                    '-cattle-access-key', Config.access_key(),
+                    '-cattle-secret-key', Config.secret_key()],
                    env=env)
 
 
