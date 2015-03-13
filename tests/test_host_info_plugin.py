@@ -30,6 +30,7 @@ def cadvisor_stats_data():
 
 @pytest.fixture()
 def host_data(mocker):
+    mocker.patch.object(platform, 'system', return_value='Linux')
     mocker.patch('os.getloadavg',
                  return_value=(1.60693359375, 1.73193359375, 1.79248046875))
 
@@ -57,6 +58,31 @@ def host_data(mocker):
     CadvisorAPIClient.get_containers.assert_called_with()
     cattle.utils.check_output.assert_called_once_with(
         ['docker', '-v'])
+
+    return data
+
+
+@pytest.fixture()
+def no_cadvisor_host_data(mocker):
+    mocker.patch('os.getloadavg',
+                 return_value=(1.60693359375, 1.73193359375, 1.79248046875))
+
+    mocker.patch.object(CpuCollector,
+                        '_get_cpuinfo_data',
+                        return_value=cpuinfo_data())
+
+    mocker.patch.object(MemoryCollector,
+                        '_get_meminfo_data',
+                        return_value=meminfo_data())
+
+    mocker.patch.object(CadvisorAPIClient, 'get_containers',
+                        return_value=None)
+
+    mocker.patch('cattle.utils.check_output',
+                 return_value='Docker version 1.4.1, build 5bc2ff8')
+
+    host = HostInfo()
+    data = host.collect_data()
 
     return data
 
@@ -117,6 +143,14 @@ def test_collect_data_diskinf(host_data):
     assert mount_point['/dev/sda1']['total'] == 28447.621
     assert mount_point['/dev/sda1']['used'] == 6869.797
     assert mount_point['/dev/sda1']['free'] == 21577.824
+
+
+def test_collect_data_bad_cadvisor_stat(no_cadvisor_host_data):
+    expected_cpuinfo = {}
+    expected_disk_info = {}
+
+    assert no_cadvisor_host_data['cpuInfo'] == expected_cpuinfo
+    assert no_cadvisor_host_data['diskInfo'] == expected_disk_info
 
 
 def test_collect_data_cpuinfo(host_data):
