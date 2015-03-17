@@ -87,10 +87,17 @@ class CadvisorAPIClient(object):
         return self._get(self.url + '/containers')
 
     def get_latest_stat(self):
-        return self.get_containers()['stats'][-1]
+        containers = self.get_stats()
+        if containers is not None:
+            if len(containers) > 1:
+                return containers[-1]
+        return {}
 
     def get_stats(self):
-        return self.get_containers()['stats']
+        containers = self.get_containers()
+        if containers is not None:
+            return containers['stats']
+        return []
 
     def timestamp_diff(self, time_current, time_prev):
         time_current_conv = self._timestamp_convert(time_current)
@@ -110,10 +117,16 @@ class CadvisorAPIClient(object):
             return json.loads(data)
 
     def _get(self, url):
-        with closing(urllib2.urlopen(url, timeout=5)) as resp:
-            if resp.code == 200:
-                data = resp.read()
-                return self._marshall_to_python(data)
+        try:
+            with closing(urllib2.urlopen(url, timeout=5)) as resp:
+                if resp.code == 200:
+                    data = resp.read()
+                    return self._marshall_to_python(data)
+        except:
+            log.exception(
+                "Could not get stats from cAdvisor at: {0}".format(url))
+
+        return None
 
 
 def ping_include_resources(ping):

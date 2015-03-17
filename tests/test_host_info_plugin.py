@@ -147,7 +147,7 @@ def test_collect_data_diskinf(host_data):
 
 def test_collect_data_bad_cadvisor_stat(no_cadvisor_host_data):
     expected_cpuinfo = {}
-    expected_disk_info = {}
+    expected_disk_info = {'mountPoints': {}}
 
     assert no_cadvisor_host_data['cpuInfo'] == expected_cpuinfo
     assert no_cadvisor_host_data['diskInfo'] == expected_disk_info
