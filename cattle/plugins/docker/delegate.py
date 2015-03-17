@@ -111,7 +111,7 @@ class DockerDelegate(BaseHandler):
            instanceData.get('token') is None:
             return
 
-        container = self.compute.get_container_by_name(instanceData.uuid)
+        container = self.compute.get_container(instanceData)
         if container is None:
             return
 

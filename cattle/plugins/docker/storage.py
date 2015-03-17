@@ -112,8 +112,7 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def _is_volume_removed(self, volume, storage_pool):
         if volume.deviceNumber == 0:
-            container = get_compute().get_container_by_name(
-                volume.instance.uuid)
+            container = get_compute().get_container(volume.instance)
             return container is None
         else:
             if volume.data.fields['isHostPath']:
@@ -127,8 +126,7 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
     def _do_volume_remove(self, volume, storage_pool, progress):
         if volume.deviceNumber == 0:
-            container = get_compute().get_container_by_name(
-                volume.instance.uuid)
+            container = get_compute().get_container(volume.instance)
             if container is None:
                 return
             docker_client().remove_container(container)

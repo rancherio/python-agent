@@ -212,6 +212,10 @@ class Config:
         return default_value('AGENT_INSTANCE_CATTLE_HOME', '/var/lib/cattle')
 
     @staticmethod
+    def container_state_dir():
+        return path.join(Config.state_dir(), 'containers')
+
+    @staticmethod
     def lock_dir():
         return default_value('LOCK_DIR', os.path.join(Config.home(), 'locks'))
 

@@ -1,7 +1,7 @@
 import logging
 
 from ..compute import DockerCompute
-from ..util import add_to_env
+from ..util import add_label
 from cattle.agent.handler import BaseHandler
 
 log = logging.getLogger('docker')
@@ -36,7 +36,7 @@ class NetworkSetup(BaseHandler):
                         break
 
                 if ip_address:
-                    add_to_env(config, **{"RANCHER_IP": ip_address})
+                    add_label(config, RANCHER_IP=ip_address)
         except (KeyError, AttributeError):
             pass
 

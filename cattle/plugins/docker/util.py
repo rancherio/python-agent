@@ -34,3 +34,7 @@ def add_to_env(config, *args, **kw):
     for k, v in kw.items():
         if k not in env:
             env[k] = v
+
+
+def add_label(config, **kw):
+    add_to_env(config, **kw)

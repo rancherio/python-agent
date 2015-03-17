@@ -1,14 +1,18 @@
 import logging
+import json
+from os import path
+import os
 
 from . import docker_client, pull_image
 from . import DockerConfig, DOCKER_COMPUTE_LISTENER
 from cattle import Config
 from cattle.compute import BaseComputeDriver
 from cattle.agent.handler import KindBasedMixin
-from cattle.type_manager import get_type_list
+from cattle.type_manager import get_type_list, get_type, MARSHALLER
 from cattle import utils
 from docker.errors import APIError
 from cattle.plugins.host_info.main import HostInfo
+from cattle.plugins.docker.util import add_label
 
 log = logging.getLogger('docker')
 
@@ -73,6 +77,13 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                             'uuid': name,
                             'state': 'running'
                         })
+                    else:
+                        con_inspect = self.inspect(c)
+                        envs = con_inspect['Config']['Env']
+                        # TODO WRONG WRONG WRONG
+                        #for env in envs:
+                        #        if env.startswith("RANCHER_UUID="):
+
 
         utils.ping_add_resources(pong, *containers)
         utils.ping_set_option(pong, 'instances', True)
@@ -130,12 +141,20 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             return False
         return name in names
 
-    def get_container_by_name(self, name):
-        name = '/{0}'.format(name)
-        return self.get_container_by(lambda x: self._name_filter(name, x))
+    @staticmethod
+    def _id_filter(id, container):
+        container_id = container.get('Id')
+        return id == container_id
+
+    def get_container(self, instance):
+        if instance.externalId is not None:
+            return self.get_container_by(lambda x: self._id_filter(instance.externalId, x))
+        else:
+            name = '/{0}'.format(instance.uuid)
+            return self.get_container_by(lambda x: self._name_filter(name, x))
 
     def _is_instance_active(self, instance, host):
-        container = self.get_container_by_name(instance.uuid)
+        container = self.get_container(instance)
         return _is_running(container)
 
     @staticmethod
@@ -187,6 +206,17 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         if len(ports) > 0:
             create_config['ports'] = ports
 
+    def _record_rancher_container_state(self, docker_id, instance):
+        cont_dir = Config.container_state_dir()
+        if not os.path.exists(cont_dir):
+            os.makedirs(cont_dir)
+
+        file_path = path.join(cont_dir, docker_id)
+        with open(file_path, 'w') as outfile:
+            marshaller = get_type(MARSHALLER)
+            data = marshaller.to_string(instance)
+            outfile.write(data)
+
     def _do_instance_activate(self, instance, host, progress):
 
         def to_upper_case(key):
@@ -225,6 +255,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 create_config[dest] = instance.data.fields[src]
             except (KeyError, AttributeError):
                 pass
+
+        add_label(create_config, RANCHER_UUID=instance.uuid)
 
         try:
             create_config['hostname'] = instance.hostname
@@ -298,7 +330,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         self._call_listeners(True, instance, host, create_config, start_config)
 
-        container = self.get_container_by_name(name)
+        container = self.get_container(instance)
         if container is None:
             log.info('Creating docker container [%s] from config %s', name,
                      create_config)
@@ -315,6 +347,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     container = c.create_container(image_tag, **cc)
                 else:
                     raise(e)
+
+        # self._record_rancher_container_state(container['Id'], instance)
 
         log.info('Starting docker container [%s] docker id [%s] %s', name,
                  container['Id'], start_config)
@@ -336,8 +370,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             return False
 
     def _get_instance_host_map_data(self, obj):
+        # TODO YO
         inspect = None
-        existing = self.get_container_by_name(obj.instance.uuid)
+        existing = self.get_container(obj.instance)
         docker_ports = {}
         docker_ip = None
 
@@ -360,7 +395,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                                                         port['Type'])
                         docker_ports[private_port] = None
 
-        return {
+        update = {
             'instance': {
                 '+data': {
                     'dockerContainer': existing,
@@ -373,15 +408,16 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 }
             }
         }
+        if existing is not None:
+            update['instance']['externalId'] = existing['Id']
+
+        return update
 
     def _is_instance_inactive(self, instance, host):
-        name = instance.uuid
-        container = self.get_container_by_name(name)
-
+        container = self.get_container(instance)
         return _is_stopped(container)
 
     def _do_instance_deactivate(self, instance, host, progress):
-        name = instance.uuid
         c = docker_client()
         timeout = 10
 
@@ -390,15 +426,15 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         except (TypeError, KeyError, AttributeError):
             pass
 
-        container = self.get_container_by_name(name)
+        container = self.get_container(instance)
 
         c.stop(container['Id'], timeout=timeout)
 
-        container = self.get_container_by_name(name)
+        container = self.get_container(instance)
         if not _is_stopped(container):
             c.kill(container['Id'])
 
-        container = self.get_container_by_name(name)
+        container = self.get_container(instance)
         if not _is_stopped(container):
             raise Exception('Failed to stop container {0}'
                             .format(name))
