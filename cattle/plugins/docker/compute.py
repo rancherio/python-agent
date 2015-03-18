@@ -13,6 +13,8 @@ from cattle import utils
 from docker.errors import APIError
 from cattle.plugins.host_info.main import HostInfo
 from cattle.plugins.docker.util import add_label
+from cattle.progress import Progress
+from cattle.lock import lock
 
 log = logging.getLogger('docker')
 
@@ -206,16 +208,50 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         if len(ports) > 0:
             create_config['ports'] = ports
 
-    def _record_rancher_container_state(self, docker_id, instance):
+    def _record_rancher_container_state(self, instance, docker_id=None):
+        if docker_id is None:
+            container = self.get_container(instance)
+            docker_id = container['Id']
+
         cont_dir = Config.container_state_dir()
+
+        file_path = path.join(cont_dir, docker_id)
+        if os.path.exists(file_path):
+            return
+
         if not os.path.exists(cont_dir):
             os.makedirs(cont_dir)
 
-        file_path = path.join(cont_dir, docker_id)
         with open(file_path, 'w') as outfile:
             marshaller = get_type(MARSHALLER)
             data = marshaller.to_string(instance)
             outfile.write(data)
+
+    def instance_activate(self, req=None, instanceHostMap=None,
+                          processData=None, **kw):
+
+        instance = instanceHostMap.instance
+        host = instanceHostMap.host
+        progress = Progress(req)
+        if instance is not None:
+            instance.processData = processData
+
+        if self._is_instance_active(instance, host):
+            self._record_rancher_container_state(instance)
+            return self._reply(req,
+                               self._get_response_data(req, instanceHostMap))
+
+        with lock(instance):
+            if self._is_instance_active(instance, host):
+                self._record_rancher_container_state(instance)
+                return self._reply(req, self.
+                                   _get_response_data(req, instanceHostMap))
+
+            self._do_instance_activate(instance, host, progress)
+
+            data = self._get_response_data(req, instanceHostMap)
+
+            return self._reply(req, data)
 
     def _do_instance_activate(self, instance, host, progress):
 
@@ -348,7 +384,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 else:
                     raise(e)
 
-        # self._record_rancher_container_state(container['Id'], instance)
+        self._record_rancher_container_state(instance,
+                                             docker_id=container['Id'])
 
         log.info('Starting docker container [%s] docker id [%s] %s', name,
                  container['Id'], start_config)

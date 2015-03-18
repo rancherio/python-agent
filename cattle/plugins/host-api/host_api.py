@@ -24,7 +24,8 @@ class HostApi(object):
                     '-public-key', Config.jwt_public_key_file(),
                     '-cattle-url', Config.api_url(),
                     '-cattle-access-key', Config.access_key(),
-                    '-cattle-secret-key', Config.secret_key()],
+                    '-cattle-secret-key', Config.secret_key(),
+                    '-cattle-state-dir', Config.container_state_dir()],
                    env=env)
 
 
