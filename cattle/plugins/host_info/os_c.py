@@ -11,8 +11,8 @@ class OSCollector(object):
         for key, value in zip(keys, values):
             if len(value) > 0:
                 data[key] = value
-        else:
-            data[key] = None
+            else:
+                data[key] = None
 
         return data
 
