@@ -64,6 +64,7 @@ def host_data(mocker):
 
 @pytest.fixture()
 def no_cadvisor_host_data(mocker):
+    mocker.patch.object(platform, 'system', return_value='Linux')
     mocker.patch('os.getloadavg',
                  return_value=(1.60693359375, 1.73193359375, 1.79248046875))
 
@@ -75,7 +76,7 @@ def no_cadvisor_host_data(mocker):
                         '_get_meminfo_data',
                         return_value=meminfo_data())
 
-    mocker.patch.object(CadvisorAPIClient, 'get_containers',
+    mocker.patch.object(CadvisorAPIClient, '_get',
                         return_value=None)
 
     mocker.patch('cattle.utils.check_output',
@@ -146,10 +147,18 @@ def test_collect_data_diskinf(host_data):
 
 
 def test_collect_data_bad_cadvisor_stat(no_cadvisor_host_data):
-    expected_cpuinfo = {}
+    expected_cpuinfo_keys = ['modelName',
+                             'count',
+                             'mhz',
+                             'loadAvg',
+                             'cpuCoresPercentages'
+                             ]
     expected_disk_info = {'mountPoints': {}}
 
-    assert no_cadvisor_host_data['cpuInfo'] == expected_cpuinfo
+    assert sorted(no_cadvisor_host_data['cpuInfo']) == \
+        sorted(expected_cpuinfo_keys)
+    assert no_cadvisor_host_data['cpuInfo']['cpuCoresPercentages'] == []
+
     assert no_cadvisor_host_data['diskInfo'] == expected_disk_info
 
 
