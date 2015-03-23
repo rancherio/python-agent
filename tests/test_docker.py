@@ -5,7 +5,8 @@ from cattle.plugins.docker import docker_client
 # unavailable, importing it first
 import cattle.plugins.docker  # NOQA
 
-from cattle.plugins.docker.network.setup import NetworkSetup
+from cattle.plugins.docker.network import setup_mac_and_ip
+
 from cattle.plugins.host_info.main import HostInfo
 from .common_fixtures import *  # NOQA
 import pytest
@@ -403,7 +404,7 @@ def test_multiple_nics_pick_mac():
     }
     instance = JsonObject(instance)
     config = {'test': 'Nothing'}
-    NetworkSetup().before_start(instance, None, config, None)
+    setup_mac_and_ip(instance, config)
     assert config['mac_address'] == '02:03:04:05:06:07'
 
 
@@ -420,6 +421,7 @@ def test_instance_activate_ports(agent, responses):
         del docker_container['Id']
         del docker_container['Status']
         del fields['dockerIp']
+        del resp['data']['instanceHostMap']['instance']['externalId']
 
         assert len(docker_container['Ports']) == 1
         assert docker_container['Ports'][0]['PrivatePort'] == 8080
@@ -1071,9 +1073,12 @@ def ping_post_process(req, resp):
         instances = filter(lambda x: x['type'] == 'instance' and
                            x['uuid'] == uuid, resources)
         assert len(instances) == 1
+        instance = instances[0]
+        assert instance['dockerId'] is not None
+        del instance['dockerId']
 
         resources = filter(lambda x: x.get('kind') == 'docker', resources)
-        resources.append(instances[0])
+        resources.append(instance)
 
         resp['data']['resources'] = resources
 
@@ -1130,14 +1135,17 @@ def test_volume_purge(agent, responses):
 
 def container_field_test_boiler_plate(resp):
     instance_data = resp['data']['instanceHostMap']['instance']['+data']
-    del instance_data['dockerInspect']
     docker_container = instance_data['dockerContainer']
+    assert resp['data']['instanceHostMap']['instance']['externalId'] == \
+        instance_data['dockerInspect']['Id']
+    del resp['data']['instanceHostMap']['instance']['externalId']
+    del instance_data['dockerInspect']
     fields = instance_data['+fields']
     del docker_container['Created']
     del docker_container['Id']
     del docker_container['Status']
     del fields['dockerIp']
-    docker_container = _sort_ports(docker_container)
+    _sort_ports(docker_container)
 
 
 def instance_activate_common_validation(resp):

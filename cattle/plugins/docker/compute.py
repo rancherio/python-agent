@@ -172,12 +172,15 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         return id == container_id
 
     def get_container(self, instance):
-        if instance.externalId is not None:
-            return self.get_container_by(
-                lambda x: self._id_filter(instance.externalId, x))
-        else:
-            name = '/{0}'.format(instance.uuid)
-            return self.get_container_by(lambda x: self._name_filter(name, x))
+        try:
+            if instance.externalId is not None:
+                return self.get_container_by(
+                    lambda x: self._id_filter(instance.externalId, x))
+        except AttributeError:
+            pass
+
+        name = '/{0}'.format(instance.uuid)
+        return self.get_container_by(lambda x: self._name_filter(name, x))
 
     def _is_instance_active(self, instance, host):
         container = self.get_container(instance)
