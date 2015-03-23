@@ -173,7 +173,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
     def get_container(self, instance):
         if instance.externalId is not None:
-            return self.get_container_by(lambda x: self._id_filter(instance.externalId, x))
+            return self.get_container_by(
+                lambda x: self._id_filter(instance.externalId, x))
         else:
             name = '/{0}'.format(instance.uuid)
             return self.get_container_by(lambda x: self._name_filter(name, x))
@@ -270,82 +271,102 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 return self._reply(req, self.
                                    _get_response_data(req, instanceHostMap))
 
-            self._do_instance_activate(instance, host, progress)
+            noop = self._check_noop(req)
+
+            self._do_instance_activate(instance, host, progress, noop)
 
             data = self._get_response_data(req, instanceHostMap)
 
             return self._reply(req, data)
 
-    def _do_instance_activate(self, instance, host, progress):
+    def _do_instance_activate(self, instance, host, progress, noop=False):
+        container = None
 
+        if not noop:
+
+            try:
+                image_tag = instance.image.data.dockerImage.fullName
+            except KeyError:
+                raise Exception('Can not start container with no image')
+
+            name = instance.uuid
+
+            create_config = {
+                'name': name,
+                'detach': True
+            }
+
+            start_config = {
+                'publish_all_ports': False,
+                'privileged': self._is_privileged(instance)
+            }
+
+            # These _setup_simple_config_fields calls should happen before all
+            # other config because they stomp over config fields that other
+            # setup methods might append to. Example: the environment field
+            self._setup_simple_config_fields(create_config, instance,
+                                             CREATE_CONFIG_FIELDS)
+
+            self._setup_simple_config_fields(start_config, instance,
+                                             START_CONFIG_FIELDS)
+
+            add_label(create_config, RANCHER_UUID=instance.uuid)
+
+            self._setup_hostname(create_config, instance)
+
+            self._setup_command(create_config, instance)
+
+            self._setup_ports(create_config, instance)
+
+            self._setup_volumes(create_config, instance, start_config)
+
+            self._setup_restart_policy(instance, start_config)
+
+            self._setup_links(start_config, instance)
+
+            self._setup_networking(instance, host, create_config, start_config)
+
+            setup_cattle_config_url(instance, create_config)
+
+            client = docker_client()
+
+            container = self._create_container(client, create_config,
+                                               image_tag, instance, name,
+                                               progress)
+            container_id = container['Id']
+
+            log.info('Starting docker container [%s] docker id [%s] %s', name,
+                     container_id, start_config)
+
+            client.start(container_id, **start_config)
+
+        if container is None:
+            container = self.get_container(instance)
+
+        if container is not None:
+            self._record_rancher_container_state(instance,
+                                                 docker_id=container['Id'])
+
+    def _check_noop(self, req=None):
         try:
-            image_tag = instance.image.data.dockerImage.fullName
-        except KeyError:
-            raise Exception('Can not start container with no image')
+            return req['context']['topProcessName'] == 'containerevent.create'
+        except (TypeError, AttributeError, KeyError):
+            return False
 
-        name = instance.uuid
-
-        create_config = {
-            'name': name,
-            'detach': True
-        }
-
-        start_config = {
-            'publish_all_ports': False,
-            'privileged': self._is_privileged(instance)
-        }
-
-        add_label(create_config, RANCHER_UUID=instance.uuid)
-
-        self._setup_hostname(create_config, instance)
-
-        self._setup_simple_config_fields(create_config, instance,
-                                         CREATE_CONFIG_FIELDS)
-
-        self._setup_command(create_config, instance)
-
-        self._setup_ports(create_config, instance)
-
-        self._setup_volumes(create_config, instance, start_config)
-
-        self._setup_simple_config_fields(start_config, instance,
-                                         START_CONFIG_FIELDS)
-
-        self._setup_restart_policy(instance, start_config)
-
-        self._setup_links(start_config, instance)
-
-        self._setup_networking(instance, host, create_config, start_config)
-
-        setup_cattle_config_url(instance, create_config)
-
-        client = docker_client()
-
-        container = self._create_container(client, create_config, image_tag,
-                                           instance, name, progress)
-        container_id = container['Id']
-
-        self._record_rancher_container_state(instance,
-                                             docker_id=container_id)
-
-        log.info('Starting docker container [%s] docker id [%s] %s', name,
-                 container_id, start_config)
-
-        client.start(container_id, **start_config)
-
-    def _create_container(self, c, create_config, image_tag, instance, name,
-                          progress):
+    def _create_container(self, client, create_config, image_tag, instance,
+                          name, progress):
         container = self.get_container(instance)
         if container is None:
             log.info('Creating docker container [%s] from config %s', name,
                      create_config)
 
             try:
-                container = c.create_container(image_tag, **create_config)
+                container = client.create_container(image_tag, **create_config)
             except APIError as e:
                 if e.message.response.status_code == 404:
                     pull_image(instance.image, progress)
-                    container = c.create_container(image_tag, **create_config)
+                    container = client.create_container(image_tag,
+                                                        **create_config)
                 else:
                     raise
         return container

@@ -83,7 +83,7 @@ def setup_links(instance, create_config, start_config):
         add_to_env(create_config, **result)
 
 
-def setup_ipsec(instance, host, config, start_config):
+def setup_ipsec(instance, host, create_config, start_config):
     if instance.get('agentId') is None:
         network_agent = False
     elif instance.get('systemContainer') is None or \
@@ -101,7 +101,7 @@ def setup_ipsec(instance, host, config, start_config):
         nat = instance.data.ipsec[host_id]['nat']
         isakmp = instance.data.ipsec[host_id]['isakmp']
 
-        ports = get_or_create_list(config, 'ports')
+        ports = get_or_create_list(create_config, 'ports')
         binding = get_or_create_map(start_config, 'port_bindings')
 
         ports.append((500, 'udp'))
@@ -110,8 +110,6 @@ def setup_ipsec(instance, host, config, start_config):
         binding['4500/udp'] = ('0.0.0.0', nat)
     except (KeyError, AttributeError):
         pass
-
-
 
 
 def _has_service(instance, kind):
