@@ -1,22 +1,48 @@
 import logging
-import json
 from os import path
 import os
 
 from . import docker_client, pull_image
-from . import DockerConfig, DOCKER_COMPUTE_LISTENER
+from . import DockerConfig
 from cattle import Config
 from cattle.compute import BaseComputeDriver
 from cattle.agent.handler import KindBasedMixin
-from cattle.type_manager import get_type_list, get_type, MARSHALLER
+from cattle.type_manager import get_type, MARSHALLER
 from cattle import utils
 from docker.errors import APIError
 from cattle.plugins.host_info.main import HostInfo
 from cattle.plugins.docker.util import add_label
 from cattle.progress import Progress
 from cattle.lock import lock
+from cattle.plugins.docker.network import setup_ipsec, setup_links, \
+    setup_mac_and_ip, setup_ports
+from cattle.plugins.docker.agent import setup_cattle_config_url
 
 log = logging.getLogger('docker')
+
+# Docker-py doesn't support working_dir, maybe in 0.2.4?
+CREATE_CONFIG_FIELDS = [
+    ('environment', 'environment'),
+    ('directory', 'working_dir'),
+    ('user', 'user'),
+    ('domainName', 'domainname'),
+    ('memory', 'mem_limit'),
+    ('memorySwap', 'memswap_limit'),
+    ('cpuSet', 'cpuset'),
+    ('cpuShares', 'cpu_shares'),
+    ('tty', 'tty'),
+    ('stdinOpen', 'stdin_open'),
+    ('detach', 'detach'),
+    ('entryPoint', 'entrypoint')]
+
+START_CONFIG_FIELDS = [
+    ('capAdd', 'cap_add'),
+    ('capDrop', 'cap_drop'),
+    ('dnsSearch', 'dns_search'),
+    ('dns', 'dns'),
+    ('publishAllPorts', 'publish_all_ports'),
+    ('lxcConf', 'lxc_conf'),
+    ('devices', 'devices')]
 
 
 def _is_running(container):
@@ -34,6 +60,10 @@ def _is_running(container):
 
 def _is_stopped(container):
     return not _is_running(container)
+
+
+def _to_upper_case(key):
+            return key[0].upper() + key[1:]
 
 
 class DockerCompute(KindBasedMixin, BaseComputeDriver):
@@ -73,19 +103,12 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             for name in names:
                 if name.startswith('/'):
                     name = name[1:]
-                    if utils.is_uuid(name):
-                        containers.append({
-                            'type': 'instance',
-                            'uuid': name,
-                            'state': 'running'
-                        })
-                    else:
-                        con_inspect = self.inspect(c)
-                        envs = con_inspect['Config']['Env']
-                        # TODO WRONG WRONG WRONG
-                        #for env in envs:
-                        #        if env.startswith("RANCHER_UUID="):
-
+                    containers.append({
+                        'type': 'instance',
+                        'uuid': name,
+                        'state': 'running',
+                        'dockerId': c.get('Id')
+                    })
 
         utils.ping_add_resources(pong, *containers)
         utils.ping_set_option(pong, 'instances', True)
@@ -255,69 +278,86 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
     def _do_instance_activate(self, instance, host, progress):
 
-        def to_upper_case(key):
-            return key[0].upper() + key[1:]
-
-        name = instance.uuid
         try:
             image_tag = instance.image.data.dockerImage.fullName
         except KeyError:
             raise Exception('Can not start container with no image')
 
-        c = docker_client()
+        name = instance.uuid
 
         create_config = {
             'name': name,
             'detach': True
         }
 
-        # Docker-py doesn't support working_dir, maybe in 0.2.4?
-        create_config_fields = [
-            ('environment', 'environment'),
-            ('directory', 'working_dir'),
-            ('user', 'user'),
-            ('domainName', 'domainname'),
-            ('memory', 'mem_limit'),
-            ('memorySwap', 'memswap_limit'),
-            ('cpuSet', 'cpuset'),
-            ('cpuShares', 'cpu_shares'),
-            ('tty', 'tty'),
-            ('stdinOpen', 'stdin_open'),
-            ('detach', 'detach'),
-            ('entryPoint', 'entrypoint')]
-
-        for src, dest in create_config_fields:
-            try:
-                create_config[dest] = instance.data.fields[src]
-            except (KeyError, AttributeError):
-                pass
-
-        add_label(create_config, RANCHER_UUID=instance.uuid)
-
-        try:
-            create_config['hostname'] = instance.hostname
-        except (KeyError, AttributeError):
-            pass
-
         start_config = {
             'publish_all_ports': False,
             'privileged': self._is_privileged(instance)
         }
 
-        start_config_fields = [
-            ('capAdd', 'cap_add'),
-            ('capDrop', 'cap_drop'),
-            ('dnsSearch', 'dns_search'),
-            ('dns', 'dns'),
-            ('publishAllPorts', 'publish_all_ports'),
-            ('lxcConf', 'lxc_conf')]
+        add_label(create_config, RANCHER_UUID=instance.uuid)
 
-        for src, dest in start_config_fields:
+        self._setup_hostname(create_config, instance)
+
+        self._setup_simple_config_fields(create_config, instance,
+                                         CREATE_CONFIG_FIELDS)
+
+        self._setup_command(create_config, instance)
+
+        self._setup_ports(create_config, instance)
+
+        self._setup_volumes(create_config, instance, start_config)
+
+        self._setup_simple_config_fields(start_config, instance,
+                                         START_CONFIG_FIELDS)
+
+        self._setup_restart_policy(instance, start_config)
+
+        self._setup_links(start_config, instance)
+
+        self._setup_networking(instance, host, create_config, start_config)
+
+        setup_cattle_config_url(instance, create_config)
+
+        client = docker_client()
+
+        container = self._create_container(client, create_config, image_tag,
+                                           instance, name, progress)
+        container_id = container['Id']
+
+        self._record_rancher_container_state(instance,
+                                             docker_id=container_id)
+
+        log.info('Starting docker container [%s] docker id [%s] %s', name,
+                 container_id, start_config)
+
+        client.start(container_id, **start_config)
+
+    def _create_container(self, c, create_config, image_tag, instance, name,
+                          progress):
+        container = self.get_container(instance)
+        if container is None:
+            log.info('Creating docker container [%s] from config %s', name,
+                     create_config)
+
             try:
-                start_config[dest] = instance.data.fields[src]
+                container = c.create_container(image_tag, **create_config)
+            except APIError as e:
+                if e.message.response.status_code == 404:
+                    pull_image(instance.image, progress)
+                    container = c.create_container(image_tag, **create_config)
+                else:
+                    raise
+        return container
+
+    def _setup_simple_config_fields(self, config, instance, fields):
+        for src, dest in fields:
+            try:
+                config[dest] = instance.data.fields[src]
             except (KeyError, AttributeError):
                 pass
 
+    def _setup_volumes(self, create_config, instance, start_config):
         try:
             volumes = instance.data.fields['dataVolumes']
             volumes_map = {}
@@ -335,8 +375,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 start_config['binds'] = binds_map
         except (KeyError, AttributeError):
             pass
-
         try:
+            # TODO Fix this to not use uuid
             vfcs = instance['dataVolumesFromContainers']
             container_names = [vfc['uuid'] for vfc in vfcs]
             if container_names:
@@ -344,61 +384,28 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         except KeyError:
             pass
 
-        try:
-            devices = instance.data.fields['devices']
-            start_config['devices'] = devices
-        except KeyError:
-            pass
-
+    def _setup_restart_policy(self, instance, start_config):
         try:
             restart_policy = instance.data.fields['restartPolicy']
             refactored_res_policy = {}
             for res_pol_key in restart_policy.keys():
-                refactored_res_policy[to_upper_case(res_pol_key)] = \
+                refactored_res_policy[_to_upper_case(res_pol_key)] = \
                     restart_policy[res_pol_key]
             start_config['restart_policy'] = refactored_res_policy
         except (KeyError, AttributeError):
             pass
-        self._setup_command(create_config, instance)
-        self._setup_ports(create_config, instance)
 
-        self._setup_links(start_config, instance)
+    def _setup_hostname(self, create_config, instance):
+        try:
+            create_config['hostname'] = instance.hostname
+        except (KeyError, AttributeError):
+            pass
 
-        self._call_listeners(True, instance, host, create_config, start_config)
-
-        container = self.get_container(instance)
-        if container is None:
-            log.info('Creating docker container [%s] from config %s', name,
-                     create_config)
-
-            try:
-                container = c.create_container(image_tag, **create_config)
-            except APIError as e:
-                if e.message.response.status_code == 404:
-                    # Ensure image is pulled, somebody could have deleted
-                    # it behind the scenes
-
-                    pull_image(instance.image, progress)
-                    cc = create_config
-                    container = c.create_container(image_tag, **cc)
-                else:
-                    raise(e)
-
-        self._record_rancher_container_state(instance,
-                                             docker_id=container['Id'])
-
-        log.info('Starting docker container [%s] docker id [%s] %s', name,
-                 container['Id'], start_config)
-        c.start(container['Id'], **start_config)
-
-        self._call_listeners(False, instance, host, container['Id'])
-
-    def _call_listeners(self, before, *args):
-        for listener in get_type_list(DOCKER_COMPUTE_LISTENER):
-            if before:
-                listener.before_start(*args)
-            else:
-                listener.after_start(*args)
+    def _setup_networking(self, instance, host, create_config, start_config):
+        setup_mac_and_ip(instance, create_config)
+        setup_ports(instance, create_config, start_config)
+        setup_links(instance, create_config, start_config)
+        setup_ipsec(instance, host, create_config, start_config)
 
     def _is_privileged(self, instance):
         try:
@@ -474,4 +481,4 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         container = self.get_container(instance)
         if not _is_stopped(container):
             raise Exception('Failed to stop container {0}'
-                            .format(name))
+                            .format(instance.uuid))

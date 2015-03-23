@@ -7,8 +7,6 @@ log = logging.getLogger('docker')
 
 _ENABLED = True
 
-DOCKER_COMPUTE_LISTENER = 'docker-compute-listener'
-
 
 class DockerConfig:
     def __init__(self):
@@ -100,10 +98,6 @@ except Exception, e:
 if _ENABLED and DockerConfig.docker_enabled():
     from .storage import DockerPool
     from .compute import DockerCompute
-    from .network.setup import NetworkSetup
-    from .network.links import LinkSetup
-    from .network.ipsec_tunnel import IpsecTunnelSetup
-    from .network.ports import PortSetup
     from .delegate import DockerDelegate
     from cattle import type_manager
 
@@ -112,11 +106,6 @@ if _ENABLED and DockerConfig.docker_enabled():
     _DOCKER_DELEGATE = DockerDelegate()
     type_manager.register_type(type_manager.STORAGE_DRIVER, _DOCKER_POOL)
     type_manager.register_type(type_manager.COMPUTE_DRIVER, _DOCKER_COMPUTE)
-    type_manager.register_type(DOCKER_COMPUTE_LISTENER, _DOCKER_DELEGATE)
-    type_manager.register_type(DOCKER_COMPUTE_LISTENER, NetworkSetup())
-    type_manager.register_type(DOCKER_COMPUTE_LISTENER, LinkSetup())
-    type_manager.register_type(DOCKER_COMPUTE_LISTENER, IpsecTunnelSetup())
-    type_manager.register_type(DOCKER_COMPUTE_LISTENER, PortSetup())
     type_manager.register_type(type_manager.PRE_REQUEST_HANDLER,
                                _DOCKER_DELEGATE)
 
