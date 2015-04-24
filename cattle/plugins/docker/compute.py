@@ -173,6 +173,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         container_id = container.get('Id')
         return id == container_id
 
+    def get_container_by_id(self, client, id):
+        return self.get_container_by(client, lambda x: self._id_filter(id, x))
+
     def get_container(self, client, instance):
         try:
             if instance.externalId is not None:
@@ -355,9 +358,11 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
             no_op = self._is_no_op(instance)
 
-            self._do_instance_activate(instance, host, progress, no_op)
+            container = self._do_instance_activate(instance, host, progress,
+                                                   no_op)
 
-            data = self._get_response_data(req, instanceHostMap)
+            data = self._get_response_data(req, instanceHostMap,
+                                           container=container)
 
             return self._reply(req, data)
 
@@ -426,6 +431,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         if container is not None:
             self._record_rancher_container_state(client, instance,
                                                  docker_id=container['Id'])
+            return self.get_container_by_id(client, container['Id'])
 
     def _is_no_op(self, instance):
         try:
@@ -516,10 +522,13 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         except (KeyError, AttributeError):
             return False
 
-    def _get_instance_host_map_data(self, obj):
+    def _get_instance_host_map_data(self, obj, container=None):
         client = self._get_docker_client(obj.host)
         inspect = None
-        existing = self.get_container(client, obj.instance)
+        if container:
+            existing = container
+        else:
+            existing = self.get_container(client, obj.instance)
         docker_ports = {}
         docker_ip = None
 
