@@ -340,3 +340,8 @@ class Config:
     @staticmethod
     def volmgr_dm_metadata_device():
         return default_value('VOLMGR_DM_METADATA_DEVICE', '')
+
+    @staticmethod
+    def volmgr_blockstore_dir():
+        return default_value('VOLMGR_BLOCKSTORE_DIR',
+                             '/var/lib/rancher/volmgr_blockstore/')

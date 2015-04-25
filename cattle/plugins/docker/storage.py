@@ -1,11 +1,11 @@
 import logging
+from cattle.plugins.volmgr import volmgr
 import os.path
 import shutil
 from cattle.type_manager import get_type, MARSHALLER
 from cattle.storage import BaseStoragePool
 from cattle.agent.handler import KindBasedMixin
 from . import docker_client, get_compute
-
 
 log = logging.getLogger('docker')
 
@@ -157,6 +157,49 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         return {'repo': image_uuid,
                 'tag': 'latest',
                 'uuid': image_uuid + ':latest'}
+
+    def _is_snapshot_created(self, snapshot, storage_pool):
+        log.info("Check snapshot created")
+        return 'snapshotUUID' in snapshot.data.fields
+
+    def _is_snapshot_removed(self, snapshot, storage_pool):
+        log.info("Check snapshot removed")
+        return 'removed' in snapshot.data.fields
+
+    def _do_snapshot_create(self, snapshot, storage_pool, progress):
+        log.info("Creating snapshot")
+        volume_uuid = snapshot.data.fields['volumeUUID']
+        log.info("Creating snapshot for volume %s" % volume_uuid)
+        snapshot_uuid = volmgr.create_snapshot(volume_uuid)
+        snapshot.data.fields['snapshotUUID'] = snapshot_uuid
+        log.info("New snapshot for volume, uuid is %s" % snapshot_uuid)
+        volmgr.backup_snapshot(snapshot_uuid, volume_uuid)
+        log.info("Backup snapshot for volume, uuid is %s" % snapshot_uuid)
+        return True
+
+    def _do_snapshot_remove(self, snapshot, storage_pool, progress):
+        volume_uuid = snapshot.data.fields['volumeUUID']
+        snapshot_uuid = snapshot.data.fields['snapshotUUID']
+        log.info("Removing snapshot %s for volume %s" % (
+            snapshot_uuid, volume_uuid))
+        volmgr.remove_snapshot_from_blockstore(snapshot_uuid, volume_uuid)
+        volmgr.delete_snapshot(snapshot_uuid, volume_uuid)
+        log.info("Removed snapshot %s for volume %s" % (
+                 snapshot_uuid, volume_uuid))
+        snapshot.data.fields['removed'] = True
+        return True
+
+    def _get_snapshot_storage_pool_map_data(self, obj):
+        snapshot = obj.snapshot
+        return {
+            'snapshot': {
+                '+data': {
+                    '+fields': {
+                        'snapshotUUID': snapshot.data.fields['snapshotUUID'],
+                    }
+                }
+            }
+        }
 
 
 class ImageValidationError(Exception):

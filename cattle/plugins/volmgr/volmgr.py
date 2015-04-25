@@ -14,10 +14,11 @@ RANCHER_PREFIX = "/rancher/"
 INSTANCE_TAG_FILE = "instance"
 
 v = VolmgrService("")
+blockstore_uuid = ""
 
 
 def register_loopback(data_file):
-    # ideally we should have any leftover...
+    # ideally we shouldn't have any leftover...
     output = subprocess.check_output(["losetup", "-j", data_file])
     if output == "":
         output = subprocess.check_output(["losetup", "-v", "-f",
@@ -45,23 +46,28 @@ def mounted(mount_dir):
     return False
 
 
+def get_volume_uuid(path):
+    filelist = os.listdir(path)
+    volume_uuid = ""
+    for i in filelist:
+        if i == INSTANCE_TAG_FILE:
+            continue
+        volume_uuid = i
+    return volume_uuid
+
+
 def get_volume(vol_name, vol_size, instance_name, user):
     path = get_volume_dir(vol_name, user)
     if os.path.exists(path):
-        filelist = os.listdir(path)
-        volume_uuid = ""
-        for i in filelist:
-            if i == INSTANCE_TAG_FILE:
-                continue
-            volume_uuid = i
-
+        volume_uuid = get_volume_uuid(path)
         create = False
         if volume_uuid == "":
             log.warning("Found volume directory but cannot find related \
                     volume! Create one")
-            old_instance_file = os.open(
-                os.path.join(path, INSTANCE_TAG_FILE), "r")
             create = True
+
+        old_instance_file = os.open(os.path.join(path, INSTANCE_TAG_FILE), "r")
+        old_instance_name = ""
         try:
             old_instance_name = old_instance_file.read()
         finally:
@@ -75,6 +81,7 @@ def get_volume(vol_name, vol_size, instance_name, user):
             return mount_dir
 
     volume_uuid = v.create_volume(vol_size)
+    v.add_volume_to_blockstore(volume_uuid, blockstore_uuid)
     mount_dir = os.path.join(path, volume_uuid)
     os.makedirs(mount_dir)
     f = open(os.path.join(path, INSTANCE_TAG_FILE), "w")
@@ -84,6 +91,23 @@ def get_volume(vol_name, vol_size, instance_name, user):
         f.close()
     v.mount_volume(volume_uuid, mount_dir, True)
     return mount_dir
+
+
+def create_snapshot(vol_uuid):
+    return v.create_snapshot(vol_uuid)
+
+
+def backup_snapshot(snapshot_uuid, vol_uuid):
+    v.backup_snapshot_to_blockstore(snapshot_uuid, vol_uuid, blockstore_uuid)
+
+
+def remove_snapshot_from_blockstore(snapshot_uuid, vol_uuid):
+    v.remove_snapshot_from_blockstore(snapshot_uuid, vol_uuid,
+                                      blockstore_uuid)
+
+
+def delete_snapshot(snapshot_uuid, vol_uuid):
+    v.delete_snapshot(snapshot_uuid, vol_uuid)
 
 
 def restore_snapshot(vol_name, old_vol_name, vol_size,
@@ -118,7 +142,7 @@ def update_managed_volume(instance, config, start_config):
                     snapshot_uuid = words[3]
                 else:
                     log.error("unsupported command %s, \
-                        ignore and create volume", command)
+                              ignore and create volume", command)
 
             if command == "restore":
                 log.info("About to restore snapshot")
@@ -128,10 +152,9 @@ def update_managed_volume(instance, config, start_config):
                     instance_name, user)
                 new_binds_map[mount_point] = dst
             else:
-                mount_point = get_volume(
-                    vol_name,
-                    Config.volmgr_default_volume_size(),
-                    instance_name, user)
+                mount_point = get_volume(vol_name,
+                                         Config.volmgr_default_volume_size(),
+                                         instance_name, user)
                 new_binds_map[mount_point] = dst
         else:
             new_binds_map[src] = binds_map[src]
@@ -195,3 +218,9 @@ class Volmgr(object):
                 "--driver-opts", "dm.thinpoolname=" + pool_name])
         global v
         v = VolmgrService(base_cmdline)
+
+        global blockstore_uuid
+        if not os.path.exists(Config.volmgr_blockstore_dir()):
+            os.makedirs(Config.volmgr_blockstore_dir())
+        blockstore_uuid = v.register_vfs_blockstore(
+            Config.volmgr_blockstore_dir())

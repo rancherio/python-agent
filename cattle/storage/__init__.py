@@ -66,6 +66,36 @@ class BaseStoragePool(BaseHandler):
                                                   progress)
         )
 
+    def snapshot_create(self, req=None, snapshotStoragePoolMap=None, **kw):
+        snapshot = snapshotStoragePoolMap.snapshot
+        storage_pool = snapshotStoragePoolMap.storagePool
+        progress = Progress(req)
+
+        return self._do(
+            req=req,
+            check=lambda: self._is_snapshot_created(snapshot, storage_pool),
+            result=lambda: self._get_response_data(
+                req, snapshotStoragePoolMap),
+            lock_obj=snapshot,
+            action=lambda: self._do_snapshot_create(
+                snapshot, storage_pool, progress)
+        )
+
+    def snapshot_remove(self, req=None, snapshotStoragePoolMap=None, **kw):
+        snapshot = snapshotStoragePoolMap.snapshot
+        storage_pool = snapshotStoragePoolMap.storagePool
+        progress = Progress(req)
+
+        return self._do(
+            req=req,
+            check=lambda: self._is_snapshot_removed(snapshot, storage_pool),
+            result=lambda: self._get_response_data(
+                req, snapshotStoragePoolMap),
+            lock_obj=snapshot,
+            action=lambda: self._do_snapshot_remove(
+                snapshot, storage_pool, progress)
+        )
+
     def _is_image_active(self, image, storage_pool):
         raise Exception("Not implemented")
 
@@ -88,4 +118,16 @@ class BaseStoragePool(BaseHandler):
         raise Exception("Not implemented")
 
     def _do_volume_remove(self, volume, storage_pool, progress):
+        raise Exception("Not implemented")
+
+    def _is_snapshot_created(self, snapshot, storage_pool):
+        raise Exception("Not implemented")
+
+    def _do_snapshot_create(self, snapshot, storage_pool, progress):
+        raise Exception("Not implemented")
+
+    def _is_snapshot_removed(self, snapshot, storage_pool):
+        raise Exception("Not implemented")
+
+    def _do_snapshot_remove(self, snapshot, storage_pool, progress):
         raise Exception("Not implemented")
