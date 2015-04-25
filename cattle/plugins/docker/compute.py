@@ -17,6 +17,7 @@ from cattle.lock import lock
 from cattle.plugins.docker.network import setup_ipsec, setup_links, \
     setup_mac_and_ip, setup_ports
 from cattle.plugins.docker.agent import setup_cattle_config_url
+from cattle.plugins.volmgr import volmgr
 
 log = logging.getLogger('docker')
 
@@ -476,6 +477,8 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 start_config['binds'] = binds_map
         except (KeyError, AttributeError):
             pass
+
+        volmgr.update_managed_volume(instance, create_config, start_config)
         try:
             containers = []
             for vfc in instance['dataVolumesFromContainers']:
