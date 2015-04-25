@@ -5,9 +5,15 @@ import subprocess
 import os
 import os.path
 from cattle import Config
+from .volmgr_service import VolmgrService
 
 
 log = logging.getLogger("volmgr")
+
+RANCHER_PREFIX = "/rancher/"
+INSTANCE_TAG_FILE = "instance"
+
+v = VolmgrService("")
 
 
 def register_loopback(data_file):
@@ -28,6 +34,110 @@ def cleanup_loopback(dev):
     subprocess.call(["losetup", "-d", dev])
 
 
+def get_volume_dir(vol_name, user):
+    return os.path.join(Config.volmgr_mount_dir(), user, vol_name)
+
+
+def mounted(mount_dir):
+    output = subprocess.check_output(["mount"])
+    if output.find(mount_dir):
+        return True
+    return False
+
+
+def get_volume(vol_name, vol_size, instance_name, user):
+    path = get_volume_dir(vol_name, user)
+    if os.path.exists(path):
+        filelist = os.listdir(path)
+        volume_uuid = ""
+        for i in filelist:
+            if i == INSTANCE_TAG_FILE:
+                continue
+            volume_uuid = i
+
+        create = False
+        if volume_uuid == "":
+            log.warning("Found volume directory but cannot find related \
+                    volume! Create one")
+            old_instance_file = os.open(
+                os.path.join(path, INSTANCE_TAG_FILE), "r")
+            create = True
+        try:
+            old_instance_name = old_instance_file.read()
+        finally:
+            old_instance_file.close()
+        assert old_instance_name == instance_name
+
+        if not create:
+            mount_dir = os.path.join(path, volume_uuid)
+            if not mounted(mount_dir):
+                v.mount_volume(volume_uuid, mount_dir, False)
+            return mount_dir
+
+    volume_uuid = v.create_volume(vol_size)
+    mount_dir = os.path.join(path, volume_uuid)
+    os.makedirs(mount_dir)
+    f = open(os.path.join(path, INSTANCE_TAG_FILE), "w")
+    try:
+        f.write(instance_name)
+    finally:
+        f.close()
+    v.mount_volume(volume_uuid, mount_dir, True)
+    return mount_dir
+
+
+def restore_snapshot(vol_name, old_vol_name, vol_size,
+                     snapshot_uuid, instance_name, user):
+    pass
+
+
+def update_managed_volume(instance, config, start_config):
+    if 'binds' not in start_config:
+        return
+    binds_map = start_config['binds']
+    instance_name = config['name']
+    new_binds_map = {}
+    user = "default"
+    if 'user' in config and config['user'] is not None:
+        user = config['user']
+    for bind in binds_map:
+        src = bind
+        dst = binds_map[bind]
+        if src.startswith(RANCHER_PREFIX):
+            vol_command = src[len(RANCHER_PREFIX):]
+            words = vol_command.split("/")
+            vol_name = words[0]
+            command = ""
+            old_vol_name = ""
+            snapshot_uuid = ""
+            if len(words) > 1:
+                command = words[1]
+                if command == "restore":
+                    assert len(words) == 4
+                    old_vol_name = words[2]
+                    snapshot_uuid = words[3]
+                else:
+                    log.error("unsupported command %s, \
+                        ignore and create volume", command)
+
+            if command == "restore":
+                log.info("About to restore snapshot")
+                mount_point = restore_snapshot(
+                    vol_name, old_vol_name,
+                    Config.volmgr_default_volume_size(), snapshot_uuid,
+                    instance_name, user)
+                new_binds_map[mount_point] = dst
+            else:
+                mount_point = get_volume(
+                    vol_name,
+                    Config.volmgr_default_volume_size(),
+                    instance_name, user)
+                new_binds_map[mount_point] = dst
+        else:
+            new_binds_map[src] = binds_map[src]
+    start_config['binds'] = new_binds_map
+
+
 class Volmgr(object):
     def on_startup(self):
         driver = Config.volmgr_storage_driver()
@@ -39,8 +149,8 @@ class Volmgr(object):
         if data_dev != "" and metadata_dev != "":
             if os.path.exists(data_dev) and os.path.exists(metadata_dev):
                 log.warning("Provided data_dev %s and metadata_dev %s, \
-                        but unable to find the devices, \
-                        continue with default files",
+                             but unable to find the devices, \
+                             continue with default files",
                             data_dev, metadata_dev)
                 data_dev = ""
                 metadata_dev = ""
@@ -64,8 +174,6 @@ class Volmgr(object):
             data_dev = register_loopback(data_file)
             metadata_dev = register_loopback(metadata_file)
 
-        global root_dir
-        global mount_dir
         root_dir = Config.volmgr_root()
         mount_dir = Config.volmgr_mount_dir()
         if not os.path.exists(root_dir):
@@ -73,7 +181,6 @@ class Volmgr(object):
         if not os.path.exists(mount_dir):
             os.makedirs(mount_dir)
 
-        global base_cmdline
         base_cmdline = ["volmgr", "--debug",
                         "--log", Config.volmgr_log_file(),
                         "--root", root_dir]
@@ -86,3 +193,5 @@ class Volmgr(object):
                 "--driver-opts", "dm.datadev=" + data_dev,
                 "--driver-opts", "dm.metadatadev=" + metadata_dev,
                 "--driver-opts", "dm.thinpoolname=" + pool_name])
+        global v
+        v = VolmgrService(base_cmdline)
