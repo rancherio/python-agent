@@ -475,10 +475,10 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                         binds_map[parts[0]] = bind
                 create_config['volumes'] = volumes_map
                 start_config['binds'] = binds_map
-
-            volmgr.update_managed_volume(instance, create_config, start_config)
         except (KeyError, AttributeError):
             pass
+
+        volmgr.update_managed_volume(instance, create_config, start_config)
         try:
             containers = []
             for vfc in instance['dataVolumesFromContainers']:

@@ -112,7 +112,29 @@ def delete_snapshot(snapshot_uuid, vol_uuid):
 
 def restore_snapshot(vol_name, old_vol_name, vol_size,
                      snapshot_uuid, instance_name, user):
-    pass
+    path = get_volume_dir(vol_name, user)
+    if os.path.exists(path):
+        log.info("Already found the volume, skip restore")
+        volume_uuid = get_volume_uuid(path)
+        return os.path.join(path, volume_uuid)
+    old_path = get_volume_dir(old_vol_name, user)
+    if not os.path.exists(old_path):
+        raise Exception("Cannot find old volume")
+    old_volume_uuid = get_volume_uuid(old_path)
+    volume_uuid = v.create_volume(vol_size)
+    v.restore_snapshot_from_blockstore(snapshot_uuid, old_volume_uuid,
+                                       volume_uuid, blockstore_uuid)
+    v.add_volume_to_blockstore(volume_uuid, blockstore_uuid)
+
+    mount_dir = os.path.join(path, volume_uuid)
+    os.makedirs(mount_dir)
+    f = open(os.path.join(path, INSTANCE_TAG_FILE), "w")
+    try:
+        f.write(instance_name)
+    finally:
+        f.close()
+    v.mount_volume(volume_uuid, mount_dir, False)
+    return mount_dir
 
 
 def update_managed_volume(instance, config, start_config):
