@@ -298,3 +298,45 @@ class Config:
     @staticmethod
     def cadvisor_wrapper():
         return default_value('CADVISOR_WRAPPER', '')
+
+    @staticmethod
+    def volmgr_storage_driver():
+        return default_value('VOLMGR_STORAGE_DRIVER', 'devicemapper')
+
+    @staticmethod
+    def volmgr_log_file():
+        return default_value('VOLMGR_LOG_FILE', '/var/log/rancher/volmgr.log')
+
+    @staticmethod
+    def volmgr_root():
+        return default_value('VOLMGR_ROOT', '/var/lib/rancher/volmgr/')
+
+    @staticmethod
+    def volmgr_pool_name():
+        return default_value('VOLMGR_POOL_NAME', 'rancher-volmgr-pool')
+
+    @staticmethod
+    def volmgr_default_volume_size():
+        return default_value('VOLMGR_DEFAULT_VOLUME_SIZE', 1073741824)
+
+    @staticmethod
+    def volmgr_mount_dir():
+        return default_value('VOLMGR_MOUNT_DIR', '/var/lib/rancher/mounts')
+
+    @staticmethod
+    def volmgr_dm_data_file():
+        return default_value('VOLMGR_DM_DATA_FILE',
+                             '/var/lib/rancher/volmgr_data_file')
+
+    @staticmethod
+    def volmgr_dm_metadata_file():
+        return default_value('VOLMGR_DM_METADATA_FILE',
+                             '/var/lib/rancher/volmgr_metadata_file')
+
+    @staticmethod
+    def volmgr_dm_data_device():
+        return default_value('VOLMGR_DM_DATA_DEVICE', '')
+
+    @staticmethod
+    def volmgr_dm_metadata_device():
+        return default_value('VOLMGR_DM_METADATA_DEVICE', '')
