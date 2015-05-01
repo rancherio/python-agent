@@ -11,7 +11,7 @@ from cattle import utils
 from docker.errors import APIError
 from docker import tls
 from cattle.plugins.host_info.main import HostInfo
-from cattle.plugins.docker.util import add_label
+from cattle.plugins.docker.util import add_label, is_no_op
 from cattle.progress import Progress
 from cattle.lock import lock
 from cattle.plugins.docker.network import setup_ipsec, setup_links, \
@@ -185,6 +185,9 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 instance.externalId, x))
 
     def _is_instance_active(self, instance, host):
+        if is_no_op(instance):
+            return True
+
         client = self._get_docker_client(host)
         container = self.get_container(client, instance)
         return _is_running(client, container)
@@ -307,8 +310,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         if len(ports) > 0:
             create_config['ports'] = ports
 
-    def _record_rancher_container_state(self, client, instance,
-                                        docker_id=None):
+    def _record_state(self, client, instance, docker_id=None):
         if docker_id is None:
             container = self.get_container(client, instance)
             if container is not None:
@@ -349,89 +351,77 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         with lock(instance):
             if self._is_instance_active(instance, host):
-                self._record_rancher_container_state(client, instance)
+                self._record_state(client, instance)
                 return self._reply(req, self.
                                    _get_response_data(req, instanceHostMap))
 
-            no_op = self._is_no_op(instance)
-
-            self._do_instance_activate(instance, host, progress, no_op)
+            self._do_instance_activate(instance, host, progress)
 
             data = self._get_response_data(req, instanceHostMap)
 
             return self._reply(req, data)
 
-    def _do_instance_activate(self, instance, host, progress, no_op=False):
-        container = None
+    def _do_instance_activate(self, instance, host, progress):
+        if is_no_op(instance):
+            return
+
         client = self._get_docker_client(host)
 
-        if not no_op:
-            try:
-                image_tag = instance.image.data.dockerImage.fullName
-            except KeyError:
-                raise Exception('Can not start container with no image')
-
-            name = instance.uuid
-
-            create_config = {
-                'name': name,
-                'detach': True
-            }
-
-            start_config = {
-                'publish_all_ports': False,
-                'privileged': self._is_privileged(instance)
-            }
-
-            # These _setup_simple_config_fields calls should happen before all
-            # other config because they stomp over config fields that other
-            # setup methods might append to. Example: the environment field
-            self._setup_simple_config_fields(create_config, instance,
-                                             CREATE_CONFIG_FIELDS)
-
-            self._setup_simple_config_fields(start_config, instance,
-                                             START_CONFIG_FIELDS)
-
-            add_label(create_config, RANCHER_UUID=instance.uuid)
-
-            self._setup_hostname(create_config, instance)
-
-            self._setup_command(create_config, instance)
-
-            self._setup_ports(create_config, instance)
-
-            self._setup_volumes(create_config, instance, start_config, client)
-
-            self._setup_restart_policy(instance, start_config)
-
-            self._setup_links(start_config, instance)
-
-            self._setup_networking(instance, host, create_config, start_config)
-
-            setup_cattle_config_url(instance, create_config)
-
-            container = self._create_container(client, create_config,
-                                               image_tag, instance, name,
-                                               progress)
-            container_id = container['Id']
-
-            log.info('Starting docker container [%s] docker id [%s] %s', name,
-                     container_id, start_config)
-
-            client.start(container_id, **start_config)
-
-        if container is None:
-            container = self.get_container(client, instance)
-
-        if container is not None:
-            self._record_rancher_container_state(client, instance,
-                                                 docker_id=container['Id'])
-
-    def _is_no_op(self, instance):
         try:
-            return instance.processData.containerNoOpEvent
-        except (AttributeError, KeyError):
-            return False
+            image_tag = instance.image.data.dockerImage.fullName
+        except KeyError:
+            raise Exception('Can not start container with no image')
+
+        name = instance.uuid
+
+        create_config = {
+            'name': name,
+            'detach': True
+        }
+
+        start_config = {
+            'publish_all_ports': False,
+            'privileged': self._is_privileged(instance)
+        }
+
+        # These _setup_simple_config_fields calls should happen before all
+        # other config because they stomp over config fields that other
+        # setup methods might append to. Example: the environment field
+        self._setup_simple_config_fields(create_config, instance,
+                                         CREATE_CONFIG_FIELDS)
+
+        self._setup_simple_config_fields(start_config, instance,
+                                         START_CONFIG_FIELDS)
+
+        add_label(create_config, RANCHER_UUID=instance.uuid)
+
+        self._setup_hostname(create_config, instance)
+
+        self._setup_command(create_config, instance)
+
+        self._setup_ports(create_config, instance)
+
+        self._setup_volumes(create_config, instance, start_config, client)
+
+        self._setup_restart_policy(instance, start_config)
+
+        self._setup_links(start_config, instance)
+
+        self._setup_networking(instance, host, create_config, start_config)
+
+        setup_cattle_config_url(instance, create_config)
+
+        container = self._create_container(client, create_config,
+                                           image_tag, instance, name,
+                                           progress)
+        container_id = container['Id']
+
+        log.info('Starting docker container [%s] docker id [%s] %s', name,
+                 container_id, start_config)
+
+        client.start(container_id, **start_config)
+
+        self._record_state(client, instance, docker_id=container['Id'])
 
     def _create_container(self, client, create_config, image_tag, instance,
                           name, progress):
@@ -561,12 +551,18 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         return update
 
     def _is_instance_inactive(self, instance, host):
+        if is_no_op(instance):
+            return True
+
         c = self._get_docker_client(host)
         container = self.get_container(c, instance)
 
         return _is_stopped(c, container)
 
     def _do_instance_deactivate(self, instance, host, progress):
+        if is_no_op(instance):
+            return
+
         c = self._get_docker_client(host)
         timeout = 10
 
