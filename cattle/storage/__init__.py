@@ -10,10 +10,14 @@ class BaseStoragePool(BaseHandler):
     def _get_handler_category(self, req):
         return "storage"
 
-    def image_activate(self, req=None, imageStoragePoolMap=None, **kw):
+    def image_activate(self, req=None, imageStoragePoolMap=None,
+                       processData=None, **kw):
         image = imageStoragePoolMap.image
         storage_pool = imageStoragePoolMap.storagePool
         progress = Progress(req)
+
+        if image is not None:
+            image.processData = processData
 
         return self._do(
             req=req,
@@ -52,10 +56,14 @@ class BaseStoragePool(BaseHandler):
                                                       progress)
         )
 
-    def volume_remove(self, req=None, volumeStoragePoolMap=None, **kw):
+    def volume_remove(self, req=None, volumeStoragePoolMap=None,
+                      processData=None, **kw):
         volume = volumeStoragePoolMap.volume
         storage_pool = volumeStoragePoolMap.storagePool
         progress = Progress(req)
+
+        if volume is not None:
+            volume.processData = processData
 
         return self._do(
             req=req,

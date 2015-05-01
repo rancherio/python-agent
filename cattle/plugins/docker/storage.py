@@ -4,6 +4,7 @@ import shutil
 from cattle.type_manager import get_type, MARSHALLER
 from cattle.storage import BaseStoragePool
 from cattle.agent.handler import KindBasedMixin
+from cattle.plugins.docker.util import is_no_op
 from . import docker_client, get_compute
 
 
@@ -40,10 +41,16 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             self._do_image_activate(image, None, progress)
 
     def _is_image_active(self, image, storage_pool):
+        if is_no_op(image):
+            return True
+
         image_obj = self._get_image_by_label(image.data.dockerImage.fullName)
         return image_obj is not None
 
     def _do_image_activate(self, image, storage_pool, progress):
+        if is_no_op(image):
+            return
+
         auth_config = None
         try:
             if 'registryCredential' in image:
@@ -111,6 +118,9 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         return True
 
     def _is_volume_removed(self, volume, storage_pool):
+        if is_no_op(volume):
+            return True
+
         if volume.deviceNumber == 0:
             container = get_compute().get_container(docker_client(),
                                                     volume.instance)
@@ -126,6 +136,9 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             return not os.path.exists(path)
 
     def _do_volume_remove(self, volume, storage_pool, progress):
+        if is_no_op(volume):
+            return
+
         if volume.deviceNumber == 0:
             container = get_compute().get_container(docker_client(),
                                                     volume.instance)

@@ -45,3 +45,10 @@ def is_nonrancher_container(instance):
         return instance.nativeContainer
     except (KeyError, AttributeError):
         return False
+
+
+def is_no_op(resource):
+    try:
+        return resource.processData.containerNoOpEvent
+    except (AttributeError, KeyError):
+        return False
