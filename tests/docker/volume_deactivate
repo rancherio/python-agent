@@ -31,6 +31,7 @@
                 "deviceNumber": 0,
                 "format": null,
                 "id": 178,
+		"type": "volume",
                 "imageId": 14,
                 "instanceId": 211,
                 "name": null,

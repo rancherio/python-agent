@@ -3,6 +3,7 @@ from cattle.plugins.docker.network import setup_mac_and_ip
 from cattle.plugins.host_info.main import HostInfo
 from cattle.plugins.docker.util import remove_container
 from cattle.plugins.docker.compute import DockerCompute
+from cattle.plugins.docker import DockerConfig
 
 from .common_fixtures import *  # NOQA
 from .docker_common import *  # NOQA
@@ -25,8 +26,85 @@ def test_volume_activate(agent, responses):
 
 
 @if_docker
+def test_volume_activate_driver1(agent, responses):
+    def pre(req):
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local'}}
+        vol['name'] = 'test_vol'
+
+    def post(req, resp):
+        v = DockerConfig.storage_api_version()
+        vol = docker_client(version=v).inspect_volume('test_vol')
+        assert vol['Driver'] == 'local'
+        assert vol['Name'] == 'test_vol'
+        docker_client(version=v).remove_volume('test_vol')
+
+    event_test(agent, 'docker/volume_activate', pre_func=pre, post_func=post)
+
+
+@if_docker
+def test_volume_activate_driver2(agent, responses):
+    def pre(req):
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local',
+                                  'driverOpts': {'size': '10G'}}}
+        vol['name'] = 'test_vol'
+
+    def post(req, resp):
+        v = DockerConfig.storage_api_version()
+        vol = docker_client(version=v).inspect_volume('test_vol')
+        assert vol['Driver'] == 'local'
+        assert vol['Name'] == 'test_vol'
+        docker_client(version=v).remove_volume('test_vol')
+
+    event_test(agent, 'docker/volume_activate', pre_func=pre, post_func=post)
+
+
+@if_docker
+def test_volume_deactivate_driver(agent, responses):
+    def pre(req):
+        v = DockerConfig.storage_api_version()
+        docker_client(version=v).create_volume('test_vol',
+                                               'local')
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local',
+                                  'driverOpts': {'size': '10G'}}}
+        vol['name'] = 'test_vol'
+
+    def post(req, resp):
+        v = DockerConfig.storage_api_version()
+        vol = docker_client(version=v).inspect_volume('test_vol')
+        assert vol['Driver'] == 'local'
+        assert vol['Name'] == 'test_vol'
+        docker_client(version=v).remove_volume('test_vol')
+
+    event_test(agent, 'docker/volume_deactivate', pre_func=pre, post_func=post)
+
+
+@if_docker
 def test_volume_deactivate(agent, responses):
     event_test(agent, 'docker/volume_deactivate')
+
+
+@if_docker
+def test_volume_remove_driver(agent, responses):
+    def pre(req):
+        v = DockerConfig.storage_api_version()
+        docker_client(version=v).create_volume('test_vol',
+                                               'local')
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local',
+                                  'driverOpts': {'size': '10G'}}}
+        vol['name'] = 'test_vol'
+        vol['uri'] = 'local:///test_vol'
+
+    def post(req, resp):
+        v = DockerConfig.storage_api_version()
+        with pytest.raises(APIError) as e:
+            docker_client(version=v).inspect_volume('test_vol')
+        print e.value.explanation == 'no such volume'
+
+    event_test(agent, 'docker/volume_remove', pre_func=pre, post_func=post)
 
 
 @if_docker

@@ -43,6 +43,10 @@ class DockerConfig:
         return default_value('DOCKER_API_VERSION', '1.18')
 
     @staticmethod
+    def storage_api_version():
+        return default_value('DOCKER_STORAGE_API_VERSION', '1.21')
+
+    @staticmethod
     def docker_required():
         return default_value('DOCKER_REQUIRED', 'true') == 'true'
 
