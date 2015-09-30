@@ -25,6 +25,27 @@ def test_volume_activate(agent, responses):
 
 
 @if_docker
+def test_volume_activate_driver1(agent, responses):
+    def pre(req):
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local'}}
+        vol['name'] = 'test_vol'
+
+    event_test(agent, 'docker/volume_activate', pre_func=pre)
+
+
+@if_docker
+def test_volume_activate_driver2(agent, responses):
+    def pre(req):
+        vol = req['data']['volumeStoragePoolMap']['volume']
+        vol['data'] = {'fields': {'driver': 'local',
+                                  'driverOpts': {'size': '10G'}}}
+        vol['name'] = 'test_vol'
+
+    event_test(agent, 'docker/volume_activate', pre_func=pre)
+
+
+@if_docker
 def test_volume_deactivate(agent, responses):
     event_test(agent, 'docker/volume_deactivate')
 

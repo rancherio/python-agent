@@ -12,6 +12,7 @@ from cattle.progress import Progress
 from . import docker_client, get_compute
 from docker.errors import APIError
 from cattle.utils import is_str_set
+from cattle import default_value
 
 log = logging.getLogger('docker')
 
@@ -174,10 +175,45 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         }
 
     def _is_volume_active(self, volume, storage_pool):
+        if not hasattr(volume.data, 'fields'):
+            return True
+        if not hasattr(volume.data.fields, 'driver'):
+            return True
+        if volume.data.fields['driver'] is None:
+            return True
+        if volume.data.fields['driver'] == "":
+            return True
+        if volume.name is None or volume.name == "":
+            return True
+        try:
+            docker_client().inspect_volume(volume.name)
+        except:
+            return False
         return True
 
+    def _do_volume_activate(self, volume, storage_pool, progress):
+        driver = ""
+        driverOpts = None
+        if hasattr(volume.data, 'fields'):
+            if hasattr(volume.data.fields, 'driver'):
+                driver = volume.data.fields['driver']
+            if hasattr(volume.data.fields, 'driverOpts'):
+                driverOpts = volume.data.fields['driverOpts']
+        v = default_value('DOCKER_API_VERSION', '1.21')
+        docker_client(version=v).create_volume(volume.name,
+                                               driver,
+                                               driverOpts)
+
     def _is_volume_inactive(self, volume, storage_pool):
-        return True
+        if not hasattr(volume, 'name'):
+            return True
+        if volume.name is None or volume.name == "":
+            return True
+        try:
+            docker_client().inspect_volume(volume.name)
+        except:
+            return True
+        return False
 
     def _is_volume_removed(self, volume, storage_pool):
         if volume.deviceNumber == 0:
