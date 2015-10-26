@@ -9,7 +9,7 @@ from cattle.agent.handler import KindBasedMixin
 from cattle.plugins.docker.util import is_no_op, remove_container
 from cattle.lock import lock
 from cattle.progress import Progress
-from . import docker_client, get_compute
+from . import docker_client, get_compute, DockerConfig
 from docker.errors import APIError
 from cattle.utils import is_str_set
 
@@ -176,7 +176,24 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         }
 
     def _is_volume_active(self, volume, storage_pool):
+        if not self._is_managed_volume(volume):
+            return True
+        try:
+            v = DockerConfig.storage_api_version()
+            docker_client(version=v).inspect_volume(volume.name)
+        except APIError:
+            return False
         return True
+
+    def _do_volume_activate(self, volume, storage_pool, progress):
+        if not self._is_managed_volume(volume):
+            return
+        driver = volume.data['fields']['driver']
+        driverOpts = volume.data['fields']['driverOpts']
+        v = DockerConfig.storage_api_version()
+        docker_client(version=v).create_volume(volume.name,
+                                               driver,
+                                               driverOpts)
 
     def _is_volume_inactive(self, volume, storage_pool):
         return True
@@ -186,6 +203,8 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             container = get_compute().get_container(docker_client(),
                                                     volume.instance)
             return container is None
+        elif self._is_managed_volume(volume):
+            return not self._is_volume_active(volume, storage_pool)
         else:
             path = self._path_to_volume(volume)
             if volume.data.fields['isHostPath']:
@@ -196,6 +215,18 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
 
             return not os.path.exists(path)
 
+    def _is_managed_volume(self, volume):
+        try:
+            driver = volume.data['fields']['driver']
+            volume.data['fields']['driverOpts']
+            if driver is None or driver == "":
+                return False
+            if volume.name is None or volume.name == "":
+                return False
+        except (AttributeError, KeyError):
+            return False
+        return True
+
     def _do_volume_remove(self, volume, storage_pool, progress):
         if volume.deviceNumber == 0:
             container = get_compute().get_container(docker_client(),
@@ -203,6 +234,9 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             if container is None:
                 return
             remove_container(docker_client(), container)
+        elif self._is_managed_volume(volume):
+            v = DockerConfig.storage_api_version()
+            docker_client(version=v).remove_volume(volume.name)
         else:
             path = self._path_to_volume(volume)
             if not volume.data.fields['isHostPath']:
