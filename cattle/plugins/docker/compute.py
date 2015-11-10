@@ -108,6 +108,15 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
 
         return None
 
+    @staticmethod
+    def find_first(containers, func):
+        containers = filter(func, containers)
+
+        if len(containers) > 0:
+            return containers[0]
+
+        return None
+
     def on_ping(self, ping, pong):
         if not DockerConfig.docker_enabled():
             return
@@ -303,21 +312,22 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
             return None
 
         name = '/{0}'.format(instance.uuid)
-        container = self.get_container_by(client,
-                                          lambda x: self._name_filter(name, x))
+        container_list = client.containers(all=True, trunc=False)
+        container = self.find_first(container_list,
+                                    lambda x: self._name_filter(name, x))
         if container:
             return container
 
         if hasattr(instance, 'externalId') and instance.externalId:
             f = lambda x: self._id_filter(instance.externalId, x)
-            container = self.get_container_by(client, f)
+            container = self.find_first(container_list, f)
 
         if container:
             return container
 
         if by_agent and hasattr(instance, 'agentId') and instance.agentId:
             f = lambda x: self._agent_id_filter(str(instance.agentId), x)
-            container = self.get_container_by(client, f)
+            container = self.find_first(container_list, f)
 
         return container
 
