@@ -393,7 +393,7 @@ def test_instance_activate_memory_swap(agent, responses):
 
     def pre(req):
         instance = req['data']['instanceHostMap']['instance']
-        instance['data']['fields']['memory'] = 8000000
+        instance['data']['fields']['memory'] = 12000000
         instance['data']['fields']['memorySwap'] = 16000000
 
     def post(req, resp):
@@ -401,9 +401,9 @@ def test_instance_activate_memory_swap(agent, responses):
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         docker_inspect = instance_data['dockerInspect']
         assert docker_inspect['Config']['MemorySwap'] == 16000000
-        assert docker_inspect['Config']['Memory'] == 8000000
+        assert docker_inspect['Config']['Memory'] == 12000000
         assert docker_inspect['HostConfig']['MemorySwap'] == 16000000
-        assert docker_inspect['HostConfig']['Memory'] == 8000000
+        assert docker_inspect['HostConfig']['Memory'] == 12000000
         container_field_test_boiler_plate(resp)
 
     schema = 'docker/instance_activate_fields'
@@ -575,14 +575,14 @@ def test_instance_activate_memory(agent, responses):
 
     def pre(req):
         instance = req['data']['instanceHostMap']['instance']
-        instance['data']['fields']['memory'] = 8000000
+        instance['data']['fields']['memory'] = 12000000
 
     def post(req, resp):
         instance_activate_assert_host_config(resp)
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         docker_inspect = instance_data['dockerInspect']
-        assert docker_inspect['Config']['Memory'] == 8000000
-        assert docker_inspect['HostConfig']['Memory'] == 8000000
+        assert docker_inspect['Config']['Memory'] == 12000000
+        assert docker_inspect['HostConfig']['Memory'] == 12000000
         container_field_test_boiler_plate(resp)
 
     schema = 'docker/instance_activate_fields'
