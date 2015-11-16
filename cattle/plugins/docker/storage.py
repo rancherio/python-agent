@@ -203,9 +203,9 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
             if container is None:
                 return
             remove_container(docker_client(), container)
-        else:
-            path = self._path_to_volume(volume)
-            if not volume.data.fields['isHostPath']:
+        elif not volume.data.fields['isHostPath'] and volume.uri is not None\
+                and volume.uri.startswith('file://'):
+                path = self._path_to_volume(volume)
                 if os.path.exists(path):
                     log.info("Deleting volume: %s" % volume.uri)
                     shutil.rmtree(path)
