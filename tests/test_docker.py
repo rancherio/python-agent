@@ -17,7 +17,10 @@ def pull_images():
               ('rancher/agent', 'v0.7.9'),
               ('rancher/agent', 'latest')]
     for i in images:
-        client.pull(i[0], i[1])
+        try:
+            client.inspect_image(':'.join(i))
+        except APIError:
+            client.pull(i[0], i[1])
 
 
 @if_docker
@@ -470,6 +473,8 @@ def test_instance_activate_read_only(agent, responses):
 @if_docker
 def test_instance_activate_memory_swap(agent, responses):
     delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+    client = docker_client()
+    swap = client.info()['SwapLimit']
 
     def pre(req):
         instance = req['data']['instanceHostMap']['instance']
@@ -480,9 +485,13 @@ def test_instance_activate_memory_swap(agent, responses):
         instance_activate_assert_host_config(resp)
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         docker_inspect = instance_data['dockerInspect']
-        assert docker_inspect['Config']['MemorySwap'] == 16000000
+        if swap:
+            assert docker_inspect['Config']['MemorySwap'] == 16000000
+            assert docker_inspect['HostConfig']['MemorySwap'] == 16000000
+        else:
+            assert docker_inspect['Config']['MemorySwap'] == -1
+            assert docker_inspect['HostConfig']['MemorySwap'] == -1
         assert docker_inspect['Config']['Memory'] == 12000000
-        assert docker_inspect['HostConfig']['MemorySwap'] == 16000000
         assert docker_inspect['HostConfig']['Memory'] == 12000000
         container_field_test_boiler_plate(resp)
 
@@ -1268,21 +1277,21 @@ def test_ping(pull_images, agent, responses, mocker):
                                           'io.rancher.container.uuid':
                                           'uuid-stopped'})
     client.start(stopped)
-    client.kill(stopped)
+    client.kill(stopped, signal='SIGKILL')
 
     system_con = client.create_container('rancher/agent:v0.7.9',
                                          name='named-system', labels={
                                              'io.rancher.container.uuid':
                                              'uuid-system'})
     client.start(system_con)
-    client.kill(system_con)
+    client.kill(system_con, signal='SIGKILL')
 
     sys_nover = client.create_container('rancher/agent',
                                         name='named-sys-nover', labels={
                                             'io.rancher.container.uuid':
                                             'uuid-sys-nover'})
     client.start(sys_nover)
-    client.kill(sys_nover)
+    client.kill(sys_nover, signal='SIGKILL')
 
     agent_inst_con = client.create_container(
         'ibuildthecloud/helloworld:latest',
@@ -1294,7 +1303,7 @@ def test_ping(pull_images, agent, responses, mocker):
                 'networkAgent'},
         command='true')
     client.start(agent_inst_con)
-    client.kill(agent_inst_con)
+    client.kill(agent_inst_con, signal='SIGKILL')
 
     CONFIG_OVERRIDE['DOCKER_UUID'] = 'testuuid'
     CONFIG_OVERRIDE['PHYSICAL_HOST_UUID'] = 'hostuuid'
@@ -1500,6 +1509,15 @@ def test_instance_links_net_host(agent, responses):
 
 
 @if_docker
+def test_volume_from_data_volume_mounts_with_opt(agent, responses, request):
+    driver_opts = JsonObject(
+        {'foo': 'bar'}
+    )
+    volumes_from_data_volume_mounts_test(agent, responses, request,
+                                         driver_opts=driver_opts)
+
+
+@if_docker
 def test_volume_from_data_volume_mounts(agent, responses, request):
     volumes_from_data_volume_mounts_test(agent, responses, request)
 
@@ -1507,7 +1525,7 @@ def test_volume_from_data_volume_mounts(agent, responses, request):
 @if_docker
 def test_volume_from_data_volume_mounts_empty_opts(agent, responses, request):
     volumes_from_data_volume_mounts_test(agent, responses, request,
-                                         driver_opts={})
+                                         driver_opts=JsonObject({}))
 
 
 def volumes_from_data_volume_mounts_test(agent, responses, request,

@@ -11,7 +11,7 @@ from cattle.lock import lock
 from cattle.progress import Progress
 from . import docker_client, get_compute, DockerConfig
 from docker.errors import APIError
-from cattle.utils import is_str_set
+from cattle.utils import is_str_set, JsonObject
 
 log = logging.getLogger('docker')
 
@@ -207,7 +207,7 @@ class DockerPool(KindBasedMixin, BaseStoragePool):
         v = DockerConfig.storage_api_version()
         docker_client(version=v).create_volume(volume.name,
                                                driver,
-                                               driver_opts)
+                                               JsonObject.unwrap(driver_opts))
 
     def _is_volume_inactive(self, volume, storage_pool):
         return True

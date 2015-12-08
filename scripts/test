@@ -8,6 +8,8 @@ if [ -x "$(which wrapdocker)" ]; then
     docker ps
 fi
 
+./scripts/warm >/dev/null
+
 find -depth -name '*.pyc' -o -name '__pycache__' -exec rm -rf {} \;
 mkdir -p /var/lib/cattle
 
