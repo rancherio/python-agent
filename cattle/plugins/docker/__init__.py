@@ -40,7 +40,7 @@ class DockerConfig:
 
     @staticmethod
     def api_version():
-        return default_value('DOCKER_API_VERSION', '1.18')
+        return default_value('DOCKER_API_VERSION', 'auto')
 
     @staticmethod
     def storage_api_version():
