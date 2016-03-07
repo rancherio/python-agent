@@ -4,6 +4,7 @@ from cattle.plugins.host_info.memory import MemoryCollector
 from cattle.plugins.host_info.os_c import OSCollector
 from cattle.plugins.host_info.cpu import CpuCollector
 from cattle.plugins.host_info.disk import DiskCollector
+from cattle.plugins.host_info.network import NetworkCollector
 
 log = logging.getLogger('host_info')
 
@@ -15,7 +16,8 @@ class HostInfo(object):
         self.collectors = [MemoryCollector(),
                            OSCollector(self.docker_client),
                            DiskCollector(self.docker_client),
-                           CpuCollector()]
+                           CpuCollector(),
+                           NetworkCollector()]
 
     def collect_data(self):
         data = {}
