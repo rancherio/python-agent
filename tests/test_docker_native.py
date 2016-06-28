@@ -146,7 +146,7 @@ def test_native_container_deactivate_no_op(agent, responses):
     def post(req, resp):
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         del instance_data['dockerContainer']['Ports'][0]
-        del instance_data['+fields']['dockerPorts']['8080/tcp']
+        del instance_data['+fields']['dockerPorts'][0]
         docker_inspect = instance_data['dockerInspect']
         assert docker_inspect['State']['Running']
         container_field_test_boiler_plate(resp)
@@ -172,7 +172,7 @@ def test_native_container_activate_no_op(agent, responses):
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         instance_data['dockerContainer']['Ports'].append(
             {'Type': 'tcp', 'PrivatePort': 8080})
-        instance_data['+fields']['dockerPorts']['8080/tcp'] = None
+        instance_data['+fields']['dockerPorts'].append('8080/tcp')
         docker_inspect = instance_data['dockerInspect']
         assert not docker_inspect['State']['Running']
         container_field_test_boiler_plate(resp)

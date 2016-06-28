@@ -1,0 +1,7 @@
+#!/bin/bash
+
+DEFAULT_PYTHON=/opt/python/2.7.11
+
+if [ -e ${DEFAULT_PYTHON} ]; then
+  export PATH=${DEFAULT_PYTHON}/bin:${PATH}
+fi

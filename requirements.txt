@@ -1,9 +1,9 @@
 mako
-git+https://github.com/rancher/docker-py.git@1.5.0-rancher-2
+docker-py==1.7.2
 portalocker
 subprocess32
 psutil
 arrow
 ndg-httpsclient
-requests==2.7.0
+requests==2.9.1
 websocket-client==0.32.0

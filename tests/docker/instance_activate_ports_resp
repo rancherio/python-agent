@@ -5,10 +5,12 @@
                 "+data": {
                     "+fields": {
                         "dockerHostIp": "1.2.3.4",
-                        "dockerPorts": {
-                            "8080/tcp": null,
-                            "12201/udp": null
-                        }
+                        "dockerPorts": [
+                            "0.0.0.0:8888:6666/tcp",
+                            "12201/udp",
+                            "127.0.0.1:7777:6666/tcp",
+                            "8080/tcp"
+                        ]
                     },
                     "dockerContainer": {
                         "Command": "/sleep.sh",
@@ -16,12 +18,6 @@
                         "Image": "ibuildthecloud/helloworld:latest",
                         "Names": [
                             "/r-test"
-                        ],
-                        "Ports": [
-                            {
-                                "Type": "tcp",
-                                "PrivatePort": 8080
-                            }
                         ],
                         "Labels": {
                             "io.rancher.container.uuid": "c861f990-4472-4fa1-960f-65171b544c28",

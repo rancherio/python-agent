@@ -3,8 +3,16 @@ from cattle.plugins.docker.util import add_to_env
 from urlparse import urlparse
 
 
+def _has_label(instance):
+    try:
+        return instance.labels['io.rancher.container.cattle_url'] == 'true'
+    except:
+        pass
+    return False
+
+
 def setup_cattle_config_url(instance, create_config):
-    if instance.get('agentId') is None:
+    if instance.get('agentId') is None and not _has_label(instance):
         return
 
     if 'labels' not in create_config:

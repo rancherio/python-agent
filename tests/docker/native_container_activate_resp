@@ -5,7 +5,7 @@
                 "+data": {
                     "+fields": {
                         "dockerHostIp": "1.2.3.4",
-                        "dockerPorts": {"8080/tcp": null}
+                        "dockerPorts": ["8080/tcp"]
                     },
                     "dockerContainer": {
                         "Command": "/sleep.sh",

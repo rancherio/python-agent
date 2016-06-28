@@ -5,10 +5,10 @@
                 "+data": {
                     "+fields": {
                         "dockerHostIp": "1.2.3.4",
-                        "dockerPorts": {
-                            "8080/tcp": "1234",
-                            "12201/udp": "5678"
-                        }
+                        "dockerPorts": [
+                            "0.0.0.0:1234:12201/udp",
+                            "0.0.0.0:1234:8080/tcp"
+                        ]
                     },
                     "dockerContainer": {
                         "Command": "sleep 1 2 3",

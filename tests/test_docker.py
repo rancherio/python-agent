@@ -241,6 +241,7 @@ def test_instance_activate_ports(agent, responses):
         del instance_data['dockerMounts']
         docker_container = instance_data['dockerContainer']
         fields = instance_data['+fields']
+        fields['dockerPorts'].sort()
         del docker_container['Created']
         del docker_container['Id']
         del docker_container['Status']
@@ -248,15 +249,24 @@ def test_instance_activate_ports(agent, responses):
         del fields['dockerIp']
         del resp['data']['instanceHostMap']['instance']['externalId']
 
-        assert len(docker_container['Ports']) == 2
+        assert len(docker_container['Ports']) == 4
         for port in docker_container['Ports']:
-            if port['Type'] == 'tcp':
-                assert port['PrivatePort'] == 8080
+            if port['PrivatePort'] == 8080:
+                assert port['Type'] == 'tcp'
+                assert 'HostIp' not in port
+            elif port['PrivatePort'] == 12201:
+                assert port['Type'] == 'udp'
+                assert 'HostIp' not in port
+            elif port['PrivatePort'] == 6666 and port['PublicPort'] == 7777:
+                assert port['Type'] == 'tcp'
+                assert port['IP'] == '127.0.0.1'
+            elif port['PrivatePort'] == 6666 and port['PublicPort'] == 8888:
+                assert port['Type'] == 'tcp'
+                assert port['IP'] == '0.0.0.0'
             else:
-                assert port['PrivatePort'] == 12201
+                assert False, 'Found unknown port: %s' % port
 
-        docker_container['Ports'] = [{'Type': 'tcp', 'PrivatePort': 8080}]
-
+        del docker_container['Ports']
         instance_activate_assert_host_config(resp)
         instance_activate_assert_image_id(resp)
 
@@ -815,6 +825,10 @@ def test_instance_activate_stdinOpen(agent, responses):
 
 @if_docker
 def test_instance_activate_lxc_conf(agent, responses):
+    if newer_than('1.22'):
+        # lxc conf fields don't work in docker 1.10 and above
+        return
+
     delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
     expectedLxcConf = {"lxc.network.type": "veth"}
 
@@ -890,6 +904,92 @@ def test_instance_activate_devices(agent, responses):
             assert exp_dvc['PathInContainer'] == act_dvc['PathInContainer']
             assert exp_dvc['CgroupPermissions'] == act_dvc['CgroupPermissions']
 
+        container_field_test_boiler_plate(resp)
+
+    schema = 'docker/instance_activate_fields'
+    event_test(agent, schema, pre_func=pre, post_func=post)
+
+
+@if_docker
+def test_instance_activate_device_options(agent, responses):
+    delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+    # Note, can't test weight as it isn't supported in kernel by default
+    device_options = {'/dev/sda': {
+        'readIops': 1000,
+        'writeIops': 2000,
+        'readBps': 1024,
+        'writeBps': 2048
+        }
+    }
+
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        instance['data']['fields']['blkioDeviceOptions'] = device_options
+
+    def post(req, resp):
+        instance_activate_assert_host_config(resp)
+        instance_data = resp['data']['instanceHostMap']['instance']['+data']
+        host_config = instance_data['dockerInspect']['HostConfig']
+        assert host_config['BlkioDeviceReadIOps'] == [
+            {'Path': '/dev/sda', 'Rate': 1000}]
+        assert host_config['BlkioDeviceWriteIOps'] == [
+            {'Path': '/dev/sda', 'Rate': 2000}]
+        assert host_config['BlkioDeviceReadBps'] == [
+            {'Path': '/dev/sda', 'Rate': 1024}]
+        assert host_config['BlkioDeviceWriteBps'] == [
+            {'Path': '/dev/sda', 'Rate': 2048}]
+        container_field_test_boiler_plate(resp)
+
+    schema = 'docker/instance_activate_fields'
+    event_test(agent, schema, pre_func=pre, post_func=post)
+
+    # Test DEFAULT_DISK functionality
+    dc = DockerCompute()
+
+    device = '/dev/mock'
+
+    class MockHostInfo(object):
+        def get_default_disk(self):
+            return device
+
+    dc.host_info = MockHostInfo()
+    instance = JsonObject({'data': {}})
+    instance.data['fields'] = {
+        'blkioDeviceOptions': {
+            'DEFAULT_DISK': {'readIops': 10}
+        }
+    }
+    config = {}
+    dc._setup_device_options(config, instance)
+    assert config['BlkioDeviceReadIOps'] == [{'Path': '/dev/mock', 'Rate': 10}]
+
+    config = {}
+    device = None
+    dc._setup_device_options(config, instance)
+    assert not config  # config should be empty
+
+
+@if_docker
+def test_instance_activate_single_device_option(agent, responses):
+    delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
+    device_options = {'/dev/sda': {
+        'writeIops': 2000,
+        }
+    }
+
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        instance['data']['fields']['blkioDeviceOptions'] = device_options
+
+    def post(req, resp):
+        instance_activate_assert_host_config(resp)
+        instance_data = resp['data']['instanceHostMap']['instance']['+data']
+        host_config = instance_data['dockerInspect']['HostConfig']
+        assert host_config['BlkioDeviceWriteIOps'] == [
+            {'Path': '/dev/sda', 'Rate': 2000}]
+        assert host_config['BlkioDeviceReadIOps'] is None
+        assert host_config['BlkioDeviceReadBps'] is None
+        assert host_config['BlkioDeviceWriteBps'] is None
         container_field_test_boiler_plate(resp)
 
     schema = 'docker/instance_activate_fields'
@@ -1113,6 +1213,42 @@ def test_instance_activate_agent_instance(agent, responses):
 
 
 @if_docker
+def test_instance_activate_start_fails(agent, responses):
+    delete_container('/r-start-fails')
+    start_fails(agent)
+    container = get_container('/r-start-fails')
+    assert container is None
+
+
+@if_docker
+def test_instance_activate_start_fails_preexisting_container(agent, responses):
+    delete_container('/r-start-fails')
+    client = docker_client()
+
+    labels = {'io.rancher.container.uuid': 'start-fails'}
+    client.create_container('ibuildthecloud/helloworld',
+                            labels=labels,
+                            command='willfail',
+                            name='r-start-fails')
+
+    start_fails(agent)
+    container = get_container('/r-start-fails')
+    assert container is not None
+
+
+def start_fails(agent):
+    def pre(req):
+        instance = req['data']['instanceHostMap']['instance']
+        instance['name'] = 'start-fails'
+        instance['uuid'] = 'start-fails'
+        instance['data']['fields']['command'] = ["willfail"]
+
+    with pytest.raises(APIError):
+        event_test(agent, 'docker/instance_activate',
+                   pre_func=pre, diff=False)
+
+
+@if_docker
 def test_instance_activate_volumes(agent, responses):
     delete_container('/c861f990-4472-4fa1-960f-65171b544c28')
     delete_container('/target_volumes_from_by_uuid')
@@ -1145,7 +1281,7 @@ def test_instance_activate_volumes(agent, responses):
         assert inspect['Volumes']['/volumes_from_path_by_uuid'] is not None
         assert inspect['Volumes']['/volumes_from_path_by_id'] is not None
 
-        assert len(inspect['Volumes']) == 5
+        assert len(inspect['Volumes']) == 6
 
         assert inspect['VolumesRW'] == {
             '/host/proc': True,
@@ -1153,10 +1289,12 @@ def test_instance_activate_volumes(agent, responses):
             '/random': True,
             '/volumes_from_path_by_uuid': True,
             '/volumes_from_path_by_id': True,
-
+            '/slave_test': True,
         }
 
-        assert set(['/sys:/host/sys:ro', '/proc:/host/proc:rw']) == set(
+        assert set(['/sys:/host/sys:ro',
+                    '/proc:/host/proc:rw',
+                    '/slave_test:/slave_test:Z']) == set(
             inspect['HostConfig']['Binds'])
 
         instance_activate_common_validation(resp)

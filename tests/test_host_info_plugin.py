@@ -190,7 +190,8 @@ def test_hostlabels(host_labels):
 
 
 def test_collect_data(host_data):
-    expected_top_keys = ['memoryInfo', 'osInfo', 'cpuInfo', 'diskInfo']
+    expected_top_keys = ['memoryInfo', 'osInfo', 'cpuInfo', 'diskInfo',
+                         'iopsInfo']
 
     assert sorted(host_data.keys()) == sorted(expected_top_keys)
 
@@ -286,7 +287,8 @@ def test_collect_data_cpu_freq_fallback(no_cadvisor_non_intel_cpuinfo_mock):
 
 
 def test_non_linux_host(host_data_non_linux):
-    expected_top_keys = ['memoryInfo', 'osInfo', 'cpuInfo', 'diskInfo']
+    expected_top_keys = ['memoryInfo', 'osInfo', 'cpuInfo', 'diskInfo',
+                         'iopsInfo']
     expected_empty = {}
 
     assert sorted(host_data_non_linux.keys()) == sorted(expected_top_keys)

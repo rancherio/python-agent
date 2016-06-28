@@ -18,7 +18,7 @@ from cattle.plugins.docker.util import add_label, is_no_op, remove_container
 from cattle.progress import Progress
 from cattle.lock import lock
 from cattle.plugins.docker.network import setup_ipsec, setup_links, \
-    setup_mac_and_ip, setup_ports, setup_network_mode
+    setup_mac_and_ip, setup_ports, setup_network_mode, setup_dns
 from cattle.plugins.docker.agent import setup_cattle_config_url
 
 
@@ -388,6 +388,42 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 create_config['command'] = command
 
     @staticmethod
+    def _setup_dns_search(config, instance):
+        try:
+            if instance.systemContainer:
+                return
+        except (KeyError, AttributeError):
+            pass
+        # if only rancher search is specified,
+        # prepend search with params read from the system
+        all_rancher = True
+        try:
+            dns_search = config['dns_search']
+            if dns_search is None or len(dns_search) == 0:
+                return
+            for search in dns_search:
+                if search.endswith('rancher.internal'):
+                    continue
+                all_rancher = False
+                break
+        except KeyError:
+            return
+
+        if not all_rancher:
+            return
+        # read host's resolv.conf
+        with open('/etc/resolv.conf', 'r') as f:
+            for line in f:
+                # in case multiple search lines
+                # respect the last one
+                s = []
+                if line.startswith('search'):
+                    s = line.split()[1:]
+                for search in s[::-1]:
+                    if search not in dns_search:
+                        dns_search.insert(0, search)
+
+    @staticmethod
     def _setup_links(start_config, instance):
         links = {}
 
@@ -409,7 +445,19 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                 ports.append((port.privatePort, port.protocol))
                 if port.publicPort is not None:
                     bind = '{0}/{1}'.format(port.privatePort, port.protocol)
-                    bindings[bind] = ('', port.publicPort)
+                    bind_addr = ''
+                    try:
+                        if port.data.fields['bindAddress'] is not None:
+                            bind_addr = port.data.fields['bindAddress']
+                    except (AttributeError, KeyError):
+                        pass
+
+                    host_bind = (bind_addr, port.publicPort)
+                    if bind not in bindings:
+                        bindings[bind] = [host_bind]
+                    else:
+                        bindings[bind].append(host_bind)
+
         except (AttributeError, KeyError):
             pass
 
@@ -524,6 +572,7 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         if instance.name:
             add_label(create_config,
                       {'io.rancher.container.name': instance.name})
+        self._setup_dns_search(start_config, instance)
 
         self._setup_logging(start_config, instance)
 
@@ -548,57 +597,67 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         create_config['host_config'] = \
             client.create_host_config(**start_config)
 
-        container = self._create_container(client, create_config,
-                                           image_tag, instance, name,
-                                           progress)
+        self._setup_device_options(create_config['host_config'], instance)
+
+        container = self.get_container(client, instance)
+        created = False
+        if container is None:
+            container = self._create_container(client, create_config,
+                                               image_tag, instance, name,
+                                               progress)
+            created = True
+
         container_id = container['Id']
 
         log.info('Starting docker container [%s] docker id [%s] %s', name,
                  container_id, start_config)
 
-        client.start(container_id)
+        try:
+            client.start(container_id)
+        except Exception as e:
+            if created:
+                remove_container(client, container)
+            raise e
 
         self._record_state(client, instance, docker_id=container['Id'])
 
     def _create_container(self, client, create_config, image_tag, instance,
                           name, progress):
-        container = self.get_container(client, instance)
-        if container is None:
-            log.info('Creating docker container [%s] from config %s', name,
-                     create_config)
+        log.info('Creating docker container [%s] from config %s', name,
+                 create_config)
 
-            labels = create_config['labels']
-            if labels.get('io.rancher.container.pull_image', None) == 'always':
-                self._do_instance_pull(JsonObject({
-                    'image': instance.image,
-                    'tag': None,
-                    'mode': 'all',
-                    'complete': False,
-                }), progress)
+        labels = create_config['labels']
+        if labels.get('io.rancher.container.pull_image', None) == 'always':
+            self._do_instance_pull(JsonObject({
+                'image': instance.image,
+                'tag': None,
+                'mode': 'all',
+                'complete': False,
+            }), progress)
+        try:
+            del create_config['name']
+            command = ''
             try:
-                del create_config['name']
-                command = ''
-                try:
-                    command = create_config['command']
-                    del create_config['command']
-                except KeyError:
-                    pass
-                config = client.create_container_config(image_tag,
-                                                        command,
-                                                        **create_config)
-                try:
-                    id = instance.data
-                    config['VolumeDriver'] = id.fields['volumeDriver']
-                except (KeyError, AttributeError):
-                    pass
-                container = client.create_container_from_config(config, name)
-            except APIError as e:
-                if e.message.response.status_code == 404:
-                    pull_image(instance.image, progress)
-                    container = client.create_container_from_config(config,
-                                                                    name)
-                else:
-                    raise
+                command = create_config['command']
+                del create_config['command']
+            except KeyError:
+                pass
+            config = client.create_container_config(image_tag,
+                                                    command,
+                                                    **create_config)
+            try:
+                id = instance.data
+                config['VolumeDriver'] = id.fields['volumeDriver']
+            except (KeyError, AttributeError):
+                pass
+            container = client.create_container_from_config(config, name)
+        except APIError as e:
+            if e.message.response.status_code == 404:
+                pull_image(instance.image, progress)
+                container = client.create_container_from_config(config,
+                                                                name)
+            else:
+                raise
         return container
 
     def _flag_system_container(self, instance, create_config):
@@ -642,8 +701,11 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
                     if len(parts) == 1:
                         volumes_map[parts[0]] = {}
                     else:
-                        read_only = len(parts) == 3 and parts[2] == 'ro'
-                        bind = {'bind': parts[1], 'ro': read_only}
+                        if len(parts) == 3:
+                            mode = parts[2]
+                        else:
+                            mode = 'rw'
+                        bind = {'bind': parts[1], 'mode': mode}
                         binds_map[parts[0]] = bind
                 create_config['volumes'] = volumes_map
                 start_config['binds'] = binds_map
@@ -703,15 +765,48 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         except (KeyError, AttributeError):
             pass
 
+    def _setup_device_options(self, config, instance):
+        option_configs = \
+            [('readIops', [], 'BlkioDeviceReadIOps', 'Rate'),
+             ('writeIops', [], 'BlkioDeviceWriteIOps', 'Rate'),
+             ('readBps', [], 'BlkioDeviceReadBps', 'Rate'),
+             ('writeBps', [], 'BlkioDeviceWriteBps', 'Rate'),
+             ('weight', [], 'BlkioWeightDevice', 'Weight')]
+
+        try:
+            device_options = instance.data.fields['blkioDeviceOptions']
+        except (KeyError, AttributeError):
+            return
+
+        for dev, options in device_options.iteritems():
+            if dev == 'DEFAULT_DISK':
+                dev = self.host_info.get_default_disk()
+                if not dev:
+                    log.warn("Couldn't find default device. Not setting"
+                             "device options: %s", options)
+                    continue
+            for k, dev_list, _, field in option_configs:
+                if k in options and options[k] is not None:
+                    value = options[k]
+                    dev_list.append({'Path': dev, field: value})
+
+        for _, dev_list, docker_field, _ in option_configs:
+            if len(dev_list):
+                config[docker_field] = dev_list
+
     def _setup_networking(self, instance, host, create_config, start_config):
         client = docker_client()
 
-        ports_supported = setup_network_mode(instance, self, client,
-                                             create_config, start_config)
-        setup_mac_and_ip(instance, create_config, set_mac=ports_supported)
+        ports_supported, hostname_supported = setup_network_mode(instance,
+                                                                 self, client,
+                                                                 create_config,
+                                                                 start_config)
+        setup_mac_and_ip(instance, create_config, set_mac=ports_supported,
+                         set_hostname=hostname_supported)
         setup_ports(instance, create_config, start_config, ports_supported)
         setup_links(instance, create_config, start_config)
         setup_ipsec(instance, host, create_config, start_config)
+        setup_dns(instance)
 
     def _is_true(self, instance, key):
         try:
@@ -724,28 +819,34 @@ class DockerCompute(KindBasedMixin, BaseComputeDriver):
         inspect = None
         docker_mounts = None
         existing = self.get_container(client, obj.instance)
-        docker_ports = {}
+        docker_ports = []
         docker_ip = None
 
-        if existing is not None:
-            inspect = client.inspect_container(existing['Id'])
-            docker_mounts = self._get_mount_data(obj.host, existing['Id'])
-            docker_ip = inspect['NetworkSettings']['IPAddress']
-            if existing.get('Ports') is not None:
-                for port in existing['Ports']:
-                    if 'PublicPort' in port and 'PrivatePort' not in port:
-                        # Remove after docker 0.12/1.0 is released
-                        private_port = '{0}/{1}'.format(port['PublicPort'],
-                                                        port['Type'])
-                        docker_ports[private_port] = None
-                    elif 'PublicPort' in port:
+        try:
+            if existing is not None:
+                inspect = client.inspect_container(existing['Id'])
+                docker_mounts = self._get_mount_data(obj.host, existing['Id'])
+                docker_ip = inspect['NetworkSettings']['IPAddress']
+                if existing.get('Ports') is not None:
+                    for port in existing['Ports']:
                         private_port = '{0}/{1}'.format(port['PrivatePort'],
                                                         port['Type'])
-                        docker_ports[private_port] = str(port['PublicPort'])
-                    else:
-                        private_port = '{0}/{1}'.format(port['PrivatePort'],
-                                                        port['Type'])
-                        docker_ports[private_port] = None
+                        port_spec = private_port
+
+                        bind_addr = ''
+                        if 'IP' in port:
+                            bind_addr = '%s:' % port['IP']
+
+                        public_port = ''
+                        if 'PublicPort' in port:
+                            public_port = '%s:' % port['PublicPort']
+                        elif 'IP' in port:
+                            public_port = ':'
+
+                        port_spec = bind_addr + public_port + port_spec
+                        docker_ports.append(port_spec)
+        except NotFound:
+            pass
 
         update = {
             'instance': {

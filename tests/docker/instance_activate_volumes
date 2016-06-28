@@ -29,7 +29,7 @@
                         "imageUuid": "docker:ibuildthecloud/helloworld",
                         "command": "sleep 5",
                         "publishAllPorts": true,
-                        "dataVolumes": ["/proc:/host/proc", "/sys:/host/sys:ro", "/random"],
+                        "dataVolumes": ["/proc:/host/proc", "/sys:/host/sys:ro", "/random", "/slave_test:/slave_test:Z"],
                         "startOnCreate": true
                     }
                 },

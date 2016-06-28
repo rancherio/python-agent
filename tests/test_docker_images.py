@@ -193,10 +193,13 @@ def test_image_pull_invalid_credential(agent, responses):
         }
     req = json_data('docker/image_activate')
     pre(req)
-    with pytest.raises(ImageValidationError) as e:
+    if newer_than('1.22'):
+        error_class = APIError
+    else:
+        error_class = ImageValidationError
+    with pytest.raises(error_class) as e:
         agent.execute(req)
-    assert e.value.message == 'Image [tianon/true] failed to pull:' \
-                              ' Authentication is required.'
+    assert 'auth' in str(e.value.message).lower()
 
 
 @if_docker
@@ -211,9 +214,7 @@ def test_image_pull_invalid_image(agent, responses):
     pre(req)
     with pytest.raises(ImageValidationError) as e:
         agent.execute(req)
-    assert e.value.message == 'Image [{}] failed to pull: Error: image ' \
-                              'library/{}:latest not found'\
-        .format(image_name, image_name)
+    assert 'not found' in e.value.message
 
 
 @if_docker

@@ -2,6 +2,7 @@
 set -e
 
 cd $(dirname $0)/..
+. scripts/common
 
 if [ -x "$(which wrapdocker)" ]; then
     wrapdocker > /tmp/docker.log 2>&1
@@ -20,8 +21,9 @@ trap "rm -rf $TMP" exit
 rsync -a --exclude .tox ./ $TMP
 pushd $TMP
 
-sudo env DOCKER_TEST=true tox -e flake8
-sudo env DOCKER_TEST=true tox -e py27
+echo $PATH
+DOCKER_TEST=true tox -e flake8
+DOCKER_TEST=true tox -e py27
 
 popd
 rsync -a --delete $TMP/.tox/ .tox

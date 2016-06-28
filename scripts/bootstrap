@@ -4,17 +4,22 @@ set -e
 cd $(dirname $0)/..
 
 apt-get update
-apt-get install -y arptables python-pip python-dev rsync libssl-dev libffi-dev uuid-runtime
+apt-get install -y arptables rsync libssl-dev libffi-dev uuid-runtime
 
-# Fix bug on overlay w/ Docker
-pip uninstall -y py pip virtualenv >/dev/null >/dev/null 2>&1 || true
-pip install --upgrade pip tox
+if [ ! -e /opt/python/2.7.11 ]; then
 
-# Switch to pip installed pip...
-/usr/local/bin/pip install psutil
-/usr/local/bin/pip install subprocess32
-/usr/local/bin/pip install ndg-httpsclient
+    mkdir -p /opt/python/2.7.11
+    curl https://www.python.org/ftp/python/2.7.11/Python-2.7.11.tgz | tar -zxv -C /tmp/
 
+    pushd /tmp/Python-2.7.11/
+    ./configure --prefix=/opt/python/2.7.11
+    make
+    make install
+
+    popd
+fi
+curl https://bootstrap.pypa.io/get-pip.py | /opt/python/2.7.11/bin/python
+/opt/python/2.7.11/bin/pip install tox psutil subprocess32 ndg-httpsclient
 
 if [ ! -x "$(which nsenter)" ]; then
     TMP=$(mktemp -d)

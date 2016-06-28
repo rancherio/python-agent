@@ -65,6 +65,21 @@ conf()
     done
 }
 
+
+run_fio() {
+    info Running fio
+
+    pushd /var/lib/docker/tmp
+
+    fio --name=randwrite --ioengine=libaio --iodepth=64 --rw=randwrite --bs=4k --direct=1 --end_fsync=1  \
+    --size=512M --numjobs=8 --runtime=30 --group_reporting --output-format=json --output=/var/lib/rancher/state/write.json
+
+    fio --name=randread --ioengine=libaio --iodepth=64 --rw=randread --bs=4k --direct=1 --end_fsync=1  --size=512M \
+    --numjobs=8 --runtime=30 --group_reporting --output-format=json --output=/var/lib/rancher/state/read.json
+
+    popd
+}
+
 start()
 {
     export PATH=${CATTLE_HOME}/bin:$PATH
@@ -78,6 +93,10 @@ start()
     cleanup
 
     $CATTLE_HOME/config.sh host-config
+
+   if [ "$CATTLE_RUN_FIO" == "true" ]; then
+       run_fio
+   fi
 
     exec $MAIN
 }

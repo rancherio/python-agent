@@ -232,6 +232,11 @@ class Config:
         return client_dir
 
     @staticmethod
+    def builds():
+        return default_value('BUILD_DIR', os.path.join(Config.home(),
+                                                       'builds'))
+
+    @staticmethod
     def stamp():
         return default_value('STAMP_FILE', os.path.join(Config.home(),
                                                         '.pyagent-stamp'))

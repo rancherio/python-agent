@@ -26,7 +26,3 @@ class HostApi(object):
                     '-cattle-url', Config.api_url(),
                     '-cattle-state-dir', Config.container_state_dir()],
                    env=env)
-
-
-def host_api_config():
-    return os.path.join(os.path.dirname(__file__), 'host-api.conf')

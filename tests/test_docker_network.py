@@ -9,11 +9,14 @@ def test_network_mode_none(agent, responses):
     def pre(req):
         instance = req['data']['instanceHostMap']['instance']
         instance['nics'][0]['network']['kind'] = 'dockerNone'
+        instance['hostname'] = 'nameisset'
 
     def post(req, resp):
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         docker_inspect = instance_data['dockerInspect']
         assert docker_inspect['Config']['NetworkDisabled']
+        assert docker_inspect['HostConfig']['NetworkMode'] == 'none'
+        assert docker_inspect['Config']['Hostname'] == 'nameisset'
 
     event_test(agent, 'docker/instance_activate', pre_func=pre,
                post_func=post, diff=False)
@@ -26,12 +29,14 @@ def test_network_mode_host(agent, responses):
     def pre(req):
         instance = req['data']['instanceHostMap']['instance']
         instance['nics'][0]['network']['kind'] = 'dockerHost'
+        instance['hostname'] = 'nameisset'
 
     def post(req, resp):
         instance_data = resp['data']['instanceHostMap']['instance']['+data']
         docker_inspect = instance_data['dockerInspect']
         assert not docker_inspect['Config']['NetworkDisabled']
         assert docker_inspect['HostConfig']['NetworkMode'] == 'host'
+        assert docker_inspect['Config']['Hostname'] != 'nameisset'
 
     event_test(agent, 'docker/instance_activate', pre_func=pre,
                post_func=post, diff=False)

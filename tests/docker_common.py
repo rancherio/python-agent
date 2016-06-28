@@ -8,6 +8,7 @@ import os
 import inspect
 import time
 from os import path
+import re
 import pytest
 from cattle import CONFIG_OVERRIDE, Config
 from .common_fixtures import TEST_DIR
@@ -177,10 +178,10 @@ def instance_activate_common_validation(resp):
     fields = resp['data']['instanceHostMap']['instance']['+data']['+fields']
     del docker_container['Ports'][0]['PublicPort']
     del docker_container['Ports'][1]['PublicPort']
-    assert fields['dockerPorts']['8080/tcp'] is not None
-    assert fields['dockerPorts']['12201/udp'] is not None
-    fields['dockerPorts']['8080/tcp'] = '1234'
-    fields['dockerPorts']['12201/udp'] = '5678'
+    fields['dockerPorts'].sort()
+    for idx, p in enumerate(fields['dockerPorts']):
+        if '8080' in p or '12201' in p:
+            fields['dockerPorts'][idx] = re.sub(r':.*:', ':1234:', p)
     assert state_file_exists(docker_id)
     instance_activate_assert_host_config(resp)
     instance_activate_assert_image_id(resp)
