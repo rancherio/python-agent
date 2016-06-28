@@ -8,6 +8,7 @@ from cattle.plugins.docker import DockerConfig
 from .common_fixtures import *  # NOQA
 from .docker_common import *  # NOQA
 from docker.errors import APIError
+import platform
 
 
 @pytest.fixture(scope='module')
@@ -1378,10 +1379,12 @@ def ping_post_process(req, resp):
     instances = []
     for r in resources:
         if r['type'] == 'host':
-            if 'io.rancher.host.kvm' in r['labels']:
-                assert r['labels']['io.rancher.host.kvm'] == 'true'
-                del r['labels']['io.rancher.host.kvm']
-            assert len(r['labels']) == 2
+            if platform.system() == 'Linux':
+                # check whether the system is Linux. If so, execute the test script below
+                if 'io.rancher.host.kvm' in r['labels']:
+                    assert r['labels']['io.rancher.host.kvm'] == 'true'
+                    del r['labels']['io.rancher.host.kvm']
+                assert len(r['labels']) == 2
             r['labels'] = labels
         if r['type'] == 'instance' and r['uuid'] in uuids:
             if r['uuid'] == 'uuid-running':
@@ -1430,10 +1433,12 @@ def ping_post_process_state_exception(req, resp):
                                        resp['data']['resources'])
     for r in resp['data']['resources']:
         if r['type'] == 'host':
-            if 'io.rancher.host.kvm' in r['labels']:
-                assert r['labels']['io.rancher.host.kvm'] == 'true'
-                del r['labels']['io.rancher.host.kvm']
-            assert len(r['labels']) == 2
+            if platform.system() == 'Linux':
+                # If the paltform system is Linux, execute the script below
+                if 'io.rancher.host.kvm' in r['labels']:
+                    assert r['labels']['io.rancher.host.kvm'] == 'true'
+                    del r['labels']['io.rancher.host.kvm']
+                assert len(r['labels']) == 2
             r['labels'] = labels
 
     assert_ping_stat_resources(resp)
