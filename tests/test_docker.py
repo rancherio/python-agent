@@ -1380,7 +1380,8 @@ def ping_post_process(req, resp):
     for r in resources:
         if r['type'] == 'host':
             if platform.system() == 'Linux':
-                # check whether the system is Linux. If so, execute the test script below
+                # check whether the system is Linux.
+                # If so, execute the test script below
                 if 'io.rancher.host.kvm' in r['labels']:
                     assert r['labels']['io.rancher.host.kvm'] == 'true'
                     del r['labels']['io.rancher.host.kvm']
@@ -1434,7 +1435,8 @@ def ping_post_process_state_exception(req, resp):
     for r in resp['data']['resources']:
         if r['type'] == 'host':
             if platform.system() == 'Linux':
-                # If the paltform system is Linux, execute the script below
+                # check whether the system is Linux.
+                # If so, execute the test script below
                 if 'io.rancher.host.kvm' in r['labels']:
                     assert r['labels']['io.rancher.host.kvm'] == 'true'
                     del r['labels']['io.rancher.host.kvm']
