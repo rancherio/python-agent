@@ -97,7 +97,7 @@ class Config:
 
     @staticmethod
     def hostname():
-        return default_value('HOSTNAME', socket.gethostname())
+        return default_value('HOSTNAME', socket.getfqdn())
 
     @staticmethod
     def workers():
